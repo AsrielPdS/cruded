@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "esNext",
+    "lib": [
+      "ESNext",
+      "DOM"
+    ],
+    "strictBindCallApply": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "module": "esnext",
+    "moduleResolution": "Node",
+    "noImplicitThis": true,
+    "esModuleInterop": true
+  },
+  "exclude": [
+    "node_modules"
+  ]
+}
