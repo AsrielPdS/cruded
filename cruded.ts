@@ -1,9 +1,8 @@
-
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
 import { Arr, Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdOkCancel, menu, menucb, menuitem, menusep, modal, output, right, w } from "galhui";
-import { Form, FormBase, Input, SelectIn, iFormBase, mdform } from "galhui/form.js";
+import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, arrayToDic, up } from "galhui/util.js";
 
 declare global {
@@ -13,7 +12,7 @@ declare global {
   interface Icons {
     null: Icon; plus: Icon;
     first: Icon; last: Icon; prev: Icon; next: Icon;
-    edit: Icon; remove: Icon;
+    edit: Icon; remove: Icon; check: Icon;
   }
   interface Words {
     all?: str;
@@ -21,7 +20,10 @@ declare global {
     confirmRemove: str,
     confirmRemoveMany: str;
     editItemTitle: str;
-    newItemTitle: str
+    newItemTitle: str;
+
+    true: str; yes?: str;
+    false: str; no?: str;
   }
   module Cruded {
     interface DataSource {
@@ -517,7 +519,7 @@ function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) 
 
 //#region entity
 export type OutputFN<F> = (this: F, v: any, p?: FieldPlatform, s?: Dic) => any;
-export interface Field extends Cruded.Field{
+export interface Field extends Cruded.Field {
   name: str;
   text?: str;
   // tp?: Key;
@@ -544,7 +546,7 @@ export interface Field extends Cruded.Field{
   def?: any;
 
 }
-export interface DataSource extends Cruded.DataSource{
+export interface DataSource extends Cruded.DataSource {
   /**id field */
   id?: str;
   /**main field */
@@ -1000,3 +1002,45 @@ export async function crud(bond: Bond, i: Crud = {}) {
 export function fromArray() {
 
 }
+
+
+export const cbFormats = {
+  icon: (v) => icon(v == null ? icons.null : v ? icons.check : icons.close),
+  /**yes | no */
+  yn: (v) => v == null ? "" : v ? w.yes : w.no,
+  /**true | false */
+  tf: (v) => v == null ? "" : v ? w.true : w.false,
+};
+const
+  _fmtn = new Intl.NumberFormat(),
+  _fmtc = new Intl.NumberFormat(void 0, { style: "currency", currency: "AOA" }),
+  _fmtp = new Intl.NumberFormat(void 0, { style: "percent", maximumFractionDigits: 1 }),
+  _fmtd = new Intl.DateTimeFormat(void 0, { dateStyle: "short" }),
+  _fmtt = new Intl.DateTimeFormat(void 0, { timeStyle: "short" }),
+  _fmtm = new Intl.DateTimeFormat(void 0, { year: "numeric", month: "long" }),
+  _fmtDT = new Intl.DateTimeFormat(void 0, { dateStyle: "short", timeStyle: "short" });
+export const
+  /**format date*/
+  fmtd = (v: Key | Date) => v == null ? "" : _fmtd.format(new Date(v)),
+  /**format time */
+  fmtt = (v: Key | Date) => v == null ? "" : _fmtt.format(new Date(v)),
+  // fmtM = (v: Date) => 
+  /**format month */
+  fmtm = (v: Key | Date) => v == null ? "" : _fmtm.format(new Date(v)),
+  /**format date & time */
+  fmtdt = (v: Key | Date) => v == null ? "" : _fmtDT.format(new Date(v)),
+  /**format number */
+  fmtn = (v: str | number | bigint) => v == null ? "" : _fmtn.format(<number>v),
+  /**format currency */
+  fmtc = (v: str | number | bigint) => v == null ? "" : _fmtc.format(<number>v),
+  /**format percent */
+  fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
+
+type _<T> = { req?: bool; def?: T; text?: str; };
+export const fText = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new TextIn({ name, req, def, text }), });
+export const fDate = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
+export const fTime = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
+export const fNumb = (name: str, { req, def, text }: _<float>): Field => ({ name, text, in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
+export const fCheck = (name: str, { req, def, text, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) }): Field => ({ name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
+export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, key, view }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
+export const fRadio = (name: str, options: RadioOption[], { req, def, text }: _<Key>): Field => ({ name, text, in: () => new RadioIn({ name, req, def, text, options }), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
