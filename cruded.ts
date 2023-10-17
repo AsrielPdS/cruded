@@ -559,7 +559,7 @@ export interface DataSource extends Cruded.DataSource {
    */
   post?(dt: Dic[]): Task<Dic[]>;
   put?(dt: Dic): Task<any>;
-  del?(ids: Key[]): Task<any[]>;
+  del?(ids: Key[]): Task<any[] | void>;
   /**bonds listeners */
   bonds?: Array<WeakRef<Bond>>;
   style?: RecordStyle;
