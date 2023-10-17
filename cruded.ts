@@ -1,7 +1,7 @@
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { Arr, Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk } from "galho/util.js";
-import { $, C, Icon, MenuContent, MenuItems, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdOkCancel, menu, menucb, menuitem, menusep, modal, output, right, w } from "galhui";
+import { Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk, arr, iByKey, AnyDic } from "galho/util.js";
+import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, output, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, arrayToDic, up } from "galhui/util.js";
 
@@ -547,6 +547,7 @@ export interface Field extends Cruded.Field {
   def?: any;
 
 }
+export type Put = (Dic & { id: Key });
 export interface DataSource extends Cruded.DataSource {
   /**id field */
   id?: str;
@@ -558,7 +559,7 @@ export interface DataSource extends Cruded.DataSource {
    * @returns an object foreach inserted line with idcolumn and other auto generated data
    */
   post?(dt: Dic[]): Task<Dic[]>;
-  put?(dt: Dic): Task<any>;
+  put?(dt: Put[]): Task<any>;
   del?(ids: Key[]): Task<any[] | void>;
   /**bonds listeners */
   bonds?: Array<WeakRef<Bond>>;
@@ -593,7 +594,7 @@ export interface ISelect<T extends GT = "rows"> {
   sort?: Array<Sort | string>;
   pag?: number;
   limit?: number;
-  where?: any[] | Dic<any>;
+  where?: str[];
   query?: string;
   queryBy?: Array<string>;
 }
@@ -925,7 +926,7 @@ export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
       bt(w.save, async e => {
         clearEvent(e);
         if (form.valid())
-          await busy(md, () => ent.put(assign(form.data(true), { id })));
+          await busy(md, () => ent.put([assign<Dic, Put>(form.data(true), { id })]));
         cl();
       }, "submit"),
       ent.post && bt(w.duplicate, async e => {
@@ -1003,17 +1004,14 @@ export async function crud(bond: Bond, i: Crud = {}) {
     ])
   ];
 }
-export function fromArray() {
-
-}
 
 
 export const cbFormats = {
-  icon: (v) => icon(v == null ? icons.null : v ? icons.check : icons.close),
+  icon: (v: bool) => icon(v == null ? icons.null : v ? icons.check : icons.close),
   /**yes | no */
-  yn: (v) => v == null ? "" : v ? w.yes : w.no,
+  yn: (v: bool) => v == null ? "" : v ? w.yes : w.no,
   /**true | false */
-  tf: (v) => v == null ? "" : v ? w.true : w.false,
+  tf: (v: bool) => v == null ? "" : v ? w.true : w.false,
 };
 const
   _fmtn = new Intl.NumberFormat(),
@@ -1040,11 +1038,182 @@ export const
   /**format percent */
   fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
 
-type _<T> = { req?: bool; def?: T; text?: str; };
-export const fText = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new TextIn({ name, req, def, text }), });
+type _<T> = { req?: bool; def?: T; text?: str; query?: bool };
+export const fText = (name: str, { req, def, text, query, input }: _<str> & { input?: TextInputTp | "ta" }): Field => ({ name, text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
 export const fDate = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
 export const fTime = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
 export const fNumb = (name: str, { req, def, text }: _<float>): Field => ({ name, text, in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
 export const fCheck = (name: str, { req, def, text, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) }): Field => ({ name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
-export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, key, view }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
-export const fRadio = (name: str, options: RadioOption[], { req, def, text }: _<Key>): Field => ({ name, text, in: () => new RadioIn({ name, req, def, text, options }), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
+export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
+export const fRadio = (name: str, options: RadioOption[], { req, def, text, query }: _<Key>): Field => ({ name, text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
+
+export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): DataSource {
+  let currentId = 1;
+  return {
+    fields,
+    get(bond) {
+      return new Promise(() => {
+        let dt = src;
+        if (bond.sort) {
+          dt = dt.slice();
+          for (let sort of bond.sort) {
+            let [field, desc] = <[str, bool?]>arr(sort), _d = desc ? 1 : -1;
+            dt.sort((a, b) => {
+              let _a = a[field];
+              let _b = b[field];
+              return _a == _b ? 0 : (_a > _b ? 1 : -1) * _d;
+            });
+          }
+        }
+        //TODO: query
+        // if (bond.query) {
+        //   let qb = bond.queryBy || fields.filter(f => f.query).map(f => f.name);
+        //   if (l(qb)) {
+        //     let vs = filter((bond.query + "").replaceAll('%', '\%').split(' '));
+        //     for (let i = 0; i < vs.length; i++) {
+        //       let assign = '';
+        //       let pattern = lit(`%${vs[i]}%`);
+        //       for (let i = 0; i < bond.queryBy.length; i++) {
+        //         if (i)
+        //           assign += ' OR ';
+        //         assign += like(this.field(bond.queryBy[i]), pattern);
+        //       }
+        //       w.push(assign);
+        //     }
+        //   }
+        // }
+        if (bond.where?.length)
+          dt = src.filter(i => {
+            //TODO: wherr
+            // for (let filter of bond.where)
+
+            return true;
+          });
+        let _ = l(dt);
+        if (bond.limit)
+          dt = dt.slice((bond.pag - 1) * bond.limit, bond.pag * bond.limit);
+        switch (bond.tp || "rows") {
+          case "full":
+            return [_, dt];
+          case "rows":
+            return dt;
+          case "col":
+            return sub(dt, bond.fields[0] as str);
+          case "row":
+            return dt[0];
+          case "one":
+            return def(dt[0]?.[bond.fields[0] as str], null);
+          default:
+            throw "not supported";
+        }
+      });
+    },
+    post(dt: T[]) {
+      let r = Array<AnyDic>(l(dt));
+      for (let item of dt) {
+        if (item[id] == null)
+          if (autoIncrement) item[id] = currentId++ as any;
+          else throw "invalid";
+        if (byKey(src, item[id], id))
+          throw "invalid";
+        r.push({ [id]: item[id] });
+        src.push(item);
+      }
+      return r;
+    },
+    put(dt) {
+      for (let item of dt) {
+        let old = byKey(src, item.id as any, id);
+        if (old) for (let key in item)
+          (old as any)[key] = item[key];
+      }
+    },
+    del(ids) {
+      for (let item of ids) {
+        let index = iByKey(src, item as any, id);
+        if (index != -1)
+          src.splice(index, 1);
+      }
+    },
+  }
+}
+
+//#region indexed db
+
+type IDBBuilder = (() => Promise<IDBDatabase>) & { stores: any[], db?: IDBDatabase };
+type Ev<R = IDBDatabase, E extends Event = Event> = E & { target: { errorCode: any, result: R } };
+// stores: Dic<(db: IDBDatabase) => any>
+export function createDb(name: str, version: int): IDBBuilder {
+
+  let me = assign(() => {
+    return new Promise<IDBDatabase>((ok, err) => {
+
+      const request = indexedDB.open(name, version);
+      request.onupgradeneeded = (e: Ev<IDBDatabase, IDBVersionChangeEvent>) => {
+        console.log(e);
+        let db = e.target.result;
+        for (let [key, keyPath, autoIncrement] of me.stores) {
+          let store = db.createObjectStore(key, { keyPath, autoIncrement });
+
+        }
+      }
+      request.onerror = (e: Ev) => {
+        let _ = e.target.errorCode;
+        mdError(_);
+        err(_);
+      };
+      request.onblocked = () => { mdError("blocked"); }
+      request.onsuccess = (e: Ev) => ok(e.target.result);
+    });
+  }, { stores: [] }) as IDBBuilder;
+  return me;
+}
+export function fromIDB(builder: IDBBuilder, key: str, fields: Field[], id = "id", autoIncrement = id == "id"): DataSource {
+  function transact<T, R>(dt: T[], exec: (s: IDBObjectStore, item: T) => any, r?: R) {
+    return new Promise<R>((ok, err) => {
+      let t = builder.db.transaction([key], "readwrite")
+      let store = t.objectStore(key);
+      t.oncomplete = () => ok(r);
+      t.onerror = err;
+      for (let item of dt)
+        exec(store, item);
+    });
+  }
+  builder.stores.push([key, id, autoIncrement])
+  return {
+    fields,
+    get(bond, cancel) {
+      return null;
+      // return new Promise((ok, err) => {
+      //   cancel.onabort = () => err("aborted");
+      //   let t = builder.db.transaction([key])
+      //   let store = t.objectStore(key);
+      //   t.oncomplete = () => ok(r);
+      //   t.onerror = err;
+      //   for (let item of dt)
+      //   exec(store, item);
+      // });
+    },
+    post(dt) {
+      let r = Array<Dic>(l(dt));
+      return transact(dt, (s, i) => s.add(i).onsuccess = (e: Ev<Dic>) => r.push({ [id]: e.target.result[id] }), r);
+    },
+    put(dt) {
+      return transact(dt, (s, i) => {
+        let t = s.get(i.id);
+        t.onerror = () => { throw null };
+        t.onsuccess = (e: Ev<Dic>) => {
+          let dt = e.target.result;
+          for (let key in i)
+            if (key != "id")
+              dt[key] = i[key];
+          s.put(dt);
+        }
+      });
+    },
+    del(ids) {
+      return transact(ids, (s, i) => s.delete(i));
+    },
+  };
+}
+//#endregion
