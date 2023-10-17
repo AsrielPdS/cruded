@@ -21,7 +21,8 @@ declare global {
     confirmRemoveMany: str;
     editItemTitle: str;
     newItemTitle: str;
-
+    showAll: str;
+    duplicate: str;
     true: str; yes?: str;
     false: str; no?: str;
   }
@@ -63,7 +64,7 @@ class Pagging extends Component<iPagging>{
         i.min * 10,
         i.min * 10,
         i.min * 20,
-        [0, 'Mostrar todos']
+        [0, w.showAll]
       ]);
     }
 
@@ -553,7 +554,10 @@ export interface DataSource extends Cruded.DataSource {
   main?: str;
   fields?: Field[];
   get?<T extends keyof SelectResult = "rows">(bond: ISelect<T>, cancel?: AbortSignal): Promise<SelectResult[T]>;
-  post?(dt: Arr<Dic>): Task<Arr<Dic>>;
+  /**insert data to source
+   * @returns an object foreach inserted line with idcolumn and other auto generated data
+   */
+  post?(dt: Dic[]): Task<Dic[]>;
   put?(dt: Dic): Task<any>;
   del?(ids: Key[]): Task<any[]>;
   /**bonds listeners */
@@ -788,7 +792,7 @@ export const search = (bond: Bond) => g("label", "_ in", [
     type: 'search',
     name: `${bond.src}_search`,
     value: bond.query || '',
-    placeholder: "Pesquisa...",
+    placeholder: w.search + "...",
   }), 'input', 500, function () { bond.query = this.value; }),
   // icon(icons.search)
   ibt(icons.search, null, () => bond.update())
@@ -908,7 +912,7 @@ export async function mdPost(ent: DataSource, form?: FormBase) {
   // if (isS(ent)) ent = await entity(ent);
   if (ent.mdform) return ent.mdform();
   form ||= ent.form ? await ent.form(ent) : new Form(ent.fields.map(f => f.set && f.in()));
-  return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post(dt));
+  return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
 export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
   let src = await ent.get({ tp: "row", where: [`${ent.id}='${id}'`], src: true });
@@ -924,10 +928,10 @@ export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
           await busy(md, () => ent.put(assign(form.data(true), { id })));
         cl();
       }, "submit"),
-      ent.post && bt("Duplicar", async e => {
+      ent.post && bt(w.duplicate, async e => {
         clearEvent(e);
         if (form.valid())
-          await busy(md, () => ent.post(form.data()));
+          await busy(md, () => ent.post([form.data()]));
         cl();
       }, "submit"),
       cancel(cl)
