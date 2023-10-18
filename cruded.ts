@@ -471,7 +471,7 @@ function crudHandler<T>(e: G, v: T, dt: L<T>, i: ICrud<T>) {
 const kbHTp = <T>(dt: L<T>, dist: int, { ctrlKey: ctrl, shiftKey: shift }: KeyboardEvent) =>
   shift ? range.move(dt, "on", dist, range.tp(ctrl, false)) :
     ctrl ? range.movePivot(dt, "on", dist) :
-      range.move(dt, "on", dist, range.Tp.set);
+      range.move(dt, "on", dist, "set");
 /**@returns true if event was already handled */
 function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) {
   switch (e.key) {
@@ -1038,14 +1038,14 @@ export const
   /**format percent */
   fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
 
-type _<T> = { req?: bool; def?: T; text?: str; query?: bool };
-export const fText = (name: str, { req, def, text, query, input }: _<str> & { input?: TextInputTp | "ta" }): Field => ({ name, text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
-export const fDate = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
-export const fTime = (name: str, { req, def, text }: _<str>): Field => ({ name, text, in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
-export const fNumb = (name: str, { req, def, text }: _<float>): Field => ({ name, text, in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
-export const fCheck = (name: str, { req, def, text, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) }): Field => ({ name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
-export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
-export const fRadio = (name: str, options: RadioOption[], { req, def, text, query }: _<Key>): Field => ({ name, text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
+type _<T> = { req?: bool; def?: T; text?: str; query?: bool, set?: bool };
+export const fText = (name: str, { req, def, text, query, input, set }: _<str> & { input?: TextInputTp | "ta" }): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
+export const fDate = (name: str, { req, def, text, set }: _<str>): Field => ({ name, text, set: t(set), in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
+export const fTime = (name: str, { req, def, text, set }: _<str>): Field => ({ name, text, set: t(set), in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
+export const fNumb = (name: str, { req, def, text, set }: _<float>): Field => ({ name, text, set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
+export const fCheck = (name: str, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) }): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
+export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
+export const fRadio = (name: str, options: RadioOption[], { req, def, text, set, query }: _<Key>): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
 
 export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): DataSource {
   let currentId = 1;
@@ -1084,6 +1084,7 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
         // }
         if (bond.where?.length)
           dt = src.filter(i => {
+            i;
             //TODO: wherr
             // for (let filter of bond.where)
 
@@ -1153,7 +1154,7 @@ export function createDb(name: str, version: int): IDBBuilder {
         console.log(e);
         let db = e.target.result;
         for (let [key, keyPath, autoIncrement] of me.stores) {
-          let store = db.createObjectStore(key, { keyPath, autoIncrement });
+          db.createObjectStore(key, { keyPath, autoIncrement });
 
         }
       }
@@ -1182,7 +1183,7 @@ export function fromIDB(builder: IDBBuilder, key: str, fields: Field[], id = "id
   builder.stores.push([key, id, autoIncrement])
   return {
     fields,
-    get(bond, cancel) {
+    get() {
       return null;
       // return new Promise((ok, err) => {
       //   cancel.onabort = () => err("aborted");
