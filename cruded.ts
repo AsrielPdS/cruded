@@ -1,7 +1,7 @@
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk, arr, iByKey, AnyDic } from "galho/util.js";
-import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, output, right, w } from "galhui";
+import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk } from "galho/util.js";
+import { $, C, Color, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, arrayToDic, up } from "galhui/util.js";
 
@@ -71,14 +71,14 @@ class Pagging extends Component<iPagging>{
     return this.bind(div("_ bar pag", [
       i.extreme && mbitem(icons.first, null, () => this.set('pag', 1)),
       mbitem(icons.prev, null, () => this.set('pag', i.pag - 1)),
-      output().css({ textAlign: "center" }),
+      g("span", "hd").css({ textAlign: "center" }),
       mbitem(icons.next, null, () => this.set('pag', i.pag + 1)),
       i.extreme && mbitem(icons.last, count, () => this.set('pag', pags)),
       limits && [
         g("hr"),
         limits.onset("value", ({ value }) => { this.set('limit', value); })
       ],
-      g("hr"), total = output()
+      g("hr"), total = g("span", "hd")
     ]), (s) => {
       total.set(`${Math.min(i.total - i.limit * (i.pag - 1), i.limit || i.total) || 0} / ${i.total || 0}`)
       pags = i.limit ? Math.ceil((i.total || 0) / i.limit) : 1;
@@ -218,7 +218,7 @@ export interface Column {
   compare?(a: any, b: any): number;
   fmt?: (v: any, p: FieldPlatform, src: Dic) => any;
 }
-interface iTable<T extends Dic> extends ICrud<T> {
+interface iTable<T extends AnyDic> extends ICrud<T> {
   /**columns */
   cols?: L<Column>
   allColumns?: Column[];
@@ -230,7 +230,7 @@ interface iTable<T extends Dic> extends ICrud<T> {
 
   empty?: () => void;
 
-  key?: string;
+  key?: PropertyKey;
   style?: RecordStyle;
   sort?: ViewSort;
   corner?: any;
@@ -238,7 +238,7 @@ interface iTable<T extends Dic> extends ICrud<T> {
   fill?: bool;
   foot?: ((tb: Table<T>) => One)[];
 }
-export class Table<T extends Dic = Dic> extends Component<iTable<T>, { resizeCol: never }>{
+export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resizeCol: never }>{
   // get data() { return this.i.data as L<T>; }
   // get footData() { return this.i.foot as L<T>; }
   get cols() { return this.p.cols; }
@@ -550,7 +550,7 @@ export interface Field extends Cruded.Field {
 export type Put = (Dic & { id: Key });
 export interface DataSource extends Cruded.DataSource {
   /**id field */
-  id?: str;
+  id?: PropertyKey;
   /**main field */
   main?: str;
   fields?: Field[];
@@ -586,7 +586,7 @@ export interface BondOptions {
 }
 export interface ISelect<T extends GT = "rows"> {
   tp?: T;
-  fields?: (str | [exp: str, key: str])[];
+  fields?: (PropertyKey | [exp: str, key: str])[];
   /**return original value */
   src?: boolean;
   /**if shoul get id @default true */
@@ -614,7 +614,7 @@ export class Bond {
   #q: str;
   #pag: number;
   #limit: number;
-  list: L<Dic>;
+  list: L<AnyDic>;
   readOnly: bool;
   length: number;
   task?: Promise<SelectRowsResult>;
@@ -892,7 +892,7 @@ export function etable(bond: Bond, i: itable = {}) {
 
   // .filter(k=>!i.meta?.includes(k))
   let corner = g("span");
-  let tb: Table = new Table<Dic>({
+  let tb: Table = new Table<AnyDic>({
     cols,
     fill: i.fill,
     resize: true,
@@ -916,7 +916,7 @@ export async function mdPost(ent: DataSource, form?: FormBase) {
   return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
 export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
-  let src = await ent.get({ tp: "row", where: [`${ent.id}='${id}'`], src: true });
+  let src = await ent.get({ tp: "row", where: [`${ent.id as str}='${id}'`], src: true });
   if (ent.mdform) return ent.mdform(src);
 
   modal(
@@ -928,7 +928,7 @@ export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
         if (form.valid())
           await busy(md, () => ent.put([assign<Dic, Put>(form.data(true), { id })]));
         cl();
-      }, "submit"),
+      }, "submit").c(Color.accept),
       ent.post && bt(w.duplicate, async e => {
         clearEvent(e);
         if (form.valid())
@@ -951,7 +951,7 @@ function sentence(src: str, args: Dic) {
     return filter(r);
   }
 }
-export async function tryRemove(ent: DataSource, items: (Dic | Key)[]) {
+export async function tryRemove(ent: DataSource, items: (AnyDic | Key)[]) {
   let count = l(items), main = items[0]?.[ent.main];
   if (await mdOkCancel(
     count == 1 && main ?
@@ -959,12 +959,12 @@ export async function tryRemove(ent: DataSource, items: (Dic | Key)[]) {
       sentence(w.confirmRemoveMany, { src: count == 1 ? ent.s : ent.p, count })
   )) await ent.del(items.map(i => isO(i) ? i[ent.id] : i));
 }
-export function mnRemove(ent: DataSource, items: Dic[]) {
+export function mnRemove(ent: DataSource, items: AnyDic[]) {
   // let id: Key[] = items.map(i => i[ent.id]);
-  return menuitem(icons.remove, w.remove, () => tryRemove(ent, items), $.sc.remove, !l(items) || !ent.del)
+  return menuitem(icons.remove, w.remove, () => tryRemove(ent, items), $.sc?.remove, !l(items) || !ent.del)
 }
-function mnEdit(ent: DataSource, items: Dic[]) {
-  return menuitem(icons.edit, w.edit, () => mdPut(ent, items[0][ent.id]), $.sc.edit, l(items) != 1 || !ent.put)
+function mnEdit(ent: DataSource, items: AnyDic[]) {
+  return menuitem(icons.edit, w.edit, () => mdPut(ent, items[0][ent.id]), $.sc?.edit, l(items) != 1 || !ent.put)
 }
 export function menuCRUD(d: Dic[], { src: e }: Bond) {
   return [mnEdit(e, d), mnRemove(e, d)]
@@ -1050,21 +1050,10 @@ export const fRadio = (name: str, options: RadioOption[], { req, def, text, set,
 export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): DataSource {
   let currentId = 1;
   return {
-    fields,
+    id, fields,
     get(bond) {
-      return new Promise(() => {
+      return new Promise((cb) => {
         let dt = src;
-        if (bond.sort) {
-          dt = dt.slice();
-          for (let sort of bond.sort) {
-            let [field, desc] = <[str, bool?]>arr(sort), _d = desc ? 1 : -1;
-            dt.sort((a, b) => {
-              let _a = a[field];
-              let _b = b[field];
-              return _a == _b ? 0 : (_a > _b ? 1 : -1) * _d;
-            });
-          }
-        }
         //TODO: query
         // if (bond.query) {
         //   let qb = bond.queryBy || fields.filter(f => f.query).map(f => f.name);
@@ -1082,7 +1071,7 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
         //     }
         //   }
         // }
-        if (bond.where?.length)
+        if (bond.where?.length) {
           dt = src.filter(i => {
             i;
             //TODO: wherr
@@ -1090,20 +1079,39 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
 
             return true;
           });
+        }
+        if (bond.sort) {
+          if (dt === src) dt = dt.slice();
+          for (let sort of bond.sort) {
+            let [field, desc] = <[str, bool?]>arr(sort), _d = desc ? 1 : -1;
+            dt.sort((a, b) => {
+              let _a = a[field];
+              let _b = b[field];
+              return _a == _b ? 0 : (_a > _b ? 1 : -1) * _d;
+            });
+          }
+        }
         let _ = l(dt);
-        if (bond.limit)
-          dt = dt.slice((bond.pag - 1) * bond.limit, bond.pag * bond.limit);
+        if (bond.limit) {
+          let pag = bond.pag || 1;
+          dt = dt.slice((pag - 1) * bond.limit, pag * bond.limit);
+        }
         switch (bond.tp || "rows") {
           case "full":
-            return [_, dt];
+            cb([_, dt]);
+            break;
           case "rows":
-            return dt;
+            cb(dt);
+            break;
           case "col":
-            return sub(dt, bond.fields[0] as str);
+            cb(sub(dt, bond.fields[0] as str));
+            break;
           case "row":
-            return dt[0];
+            cb(dt[0]);
+            break;
           case "one":
-            return def(dt[0]?.[bond.fields[0] as str], null);
+            cb(def(dt[0]?.[bond.fields[0] as str], null));
+            break;
           default:
             throw "not supported";
         }
@@ -1127,6 +1135,7 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
         let old = byKey(src, item.id as any, id);
         if (old) for (let key in item)
           (old as any)[key] = item[key];
+        else console.warn(`item of id '${item.id}' not found`)
       }
     },
     del(ids) {
@@ -1182,7 +1191,7 @@ export function fromIDB(builder: IDBBuilder, key: str, fields: Field[], id = "id
   }
   builder.stores.push([key, id, autoIncrement])
   return {
-    fields,
+    id, fields,
     get() {
       return null;
       // return new Promise((ok, err) => {
