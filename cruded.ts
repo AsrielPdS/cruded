@@ -304,7 +304,7 @@ export class Table<T extends Dic = Dic> extends Component<iTable<T>, { resizeCol
               let rows = d.childs().child(newJ);
               let next = i.fill && rows.next();
               let s2 = next?.e?.(0), r = s2?.rect?.right;
-              body.css({ cursor: 'col-resize', userSelect: "none" });
+              body().css({ cursor: 'col-resize', userSelect: "none" });
               function move(e: MouseEvent) {
                 c.size = (c.size = Math.max($.rem * 2, e.clientX - s.rect.left));
                 rows.css({ width: c.size + 'px' });
@@ -313,9 +313,9 @@ export class Table<T extends Dic = Dic> extends Component<iTable<T>, { resizeCol
                   next.css({ width: sz + 'px' });
                 }
               }
-              doc.on('mousemove', move).one('mouseup', () => {
-                doc.off('mousemove', move);
-                body.uncss("cursor", "userSelect");
+              doc().on('mousemove', move).one('mouseup', () => {
+                doc().off('mousemove', move);
+                body().uncss("cursor", "userSelect");
               });
             }
           });
