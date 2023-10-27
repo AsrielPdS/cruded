@@ -1,6 +1,6 @@
 {
   "name": "cruded",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "",
   "main": "cruded.js",
   "dependencies": {
@@ -8,6 +8,7 @@
     "galhui": ""
   },
   "type": "module",
+  "homepage": "https://asrielpires.github.io/?_=cruded",
   "keywords": [
     "crud",
     "web",

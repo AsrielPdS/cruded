@@ -1,7 +1,7 @@
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
 import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk } from "galho/util.js";
-import { $, C, Color, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
+import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, arrayToDic, up } from "galhui/util.js";
 
@@ -609,7 +609,7 @@ export interface SelectResult {
 }
 /**get type */
 export type GT = keyof SelectResult;
-type SelectRowsResult = [total: number, data: Dic[]]
+type SelectRowsResult = [total: number, data: AnyDic[]]
 export class Bond {
   #q: str;
   #pag: number;
@@ -928,7 +928,7 @@ export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
         if (form.valid())
           await busy(md, () => ent.put([assign<Dic, Put>(form.data(true), { id })]));
         cl();
-      }, "submit").c(Color.accept),
+      }, "submit").c("accept"),
       ent.post && bt(w.duplicate, async e => {
         clearEvent(e);
         if (form.valid())
