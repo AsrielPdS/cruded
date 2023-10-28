@@ -76,7 +76,7 @@ class Pagging extends Component<iPagging>{
       i.extreme && mbitem(icons.last, count, () => this.set('pag', pags)),
       limits && [
         g("hr"),
-        limits.onset("value", ({ value }) => { this.set('limit', value); })
+        g(limits.onset("value", ({ value }) => { this.set('limit', value); }), "i")
       ],
       g("hr"), total = g("span", "hd")
     ]), (s) => {
