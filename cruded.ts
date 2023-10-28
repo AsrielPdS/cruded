@@ -1,6 +1,6 @@
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, l, notF, str, sub, t, unk } from "galho/util.js";
+import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, arrayToDic, up } from "galhui/util.js";
@@ -207,7 +207,7 @@ interface ICrud<T> {
 }
 type RecordStyle = (row: G, value: Dic, index: int) => G | void;
 export interface Column {
-  key: str;
+  key: PropertyKey;
   size?: int;
   fixed?: bool;
   align?: TAlign;
@@ -222,7 +222,7 @@ interface iTable<T extends AnyDic> extends ICrud<T> {
   /**columns */
   cols?: L<Column>
   allColumns?: Column[];
-  reqColumns?: str[];
+  reqColumns?: PropertyKey[];
   enum?: boolean;
   editable?: bool;
   resize?: boolean;
@@ -259,7 +259,7 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
     //   clear: true
     // });
 
-    i.head ||= c => def(def(c.text, w[c.key]), up(c.key));
+    i.head ||= c => def(def(c.text, w[c.key]), up(c.key as str));
   }
   /**column css */
   ccss(e: G, i: int, span?: int): G
@@ -286,12 +286,12 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
       data = this.data,
       hdOptsLeave: any,
       hdOpts = all && idropdown(null, all.map(c => {
-        return menucb(cols.includes(c), def(def(c.text, w[c.key]), up(c.key)), checked => {
+        return menucb(cols.includes(c), def(def(c.text, w[c.key]), up(c.key as str)), checked => {
           if (checked) {
             cols.push(c);
             cols.sort((a, b) => all.indexOf(a) - all.indexOf(b));
           } else cols.remove(c);
-        }, c.key, req && (req.includes(c.key)))
+        }, c.key as str, req && (req.includes(c.key)))
       })).on("click", e => clearEvent(e));
     let hd = cols.bind(div("hd _ tr", wrap(i.corner, C.side)), {
       insert: (c, j, p) => {
@@ -521,7 +521,7 @@ function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) 
 //#region entity
 export type OutputFN<F> = (this: F, v: any, p?: FieldPlatform, s?: Dic) => any;
 export interface Field extends Cruded.Field {
-  name: str;
+  name: PropertyKey;
   text?: str;
   // tp?: Key;
   get?: bool;
@@ -574,10 +574,10 @@ export interface DataSource extends Cruded.DataSource {
   p?: str;
 }
 
-export type Sort = [field: str, desc?: bool];
+export type Sort<K extends PropertyKey = PropertyKey> = [field: K, desc?: bool];
 export interface BondOptions {
   fields?: str[];
-  sort?: Array<Sort | string>;
+  sort?: Array<Sort | str>;
   pag?: number;
   limit?: number;
   where?: any[] | Dic<any>;
@@ -586,17 +586,17 @@ export interface BondOptions {
 }
 export interface ISelect<T extends GT = "rows"> {
   tp?: T;
-  fields?: (PropertyKey | [exp: str, key: str])[];
+  fields?: (PropertyKey | [field: PropertyKey, exp: str])[];
   /**return original value */
   src?: boolean;
   /**if shoul get id @default true */
   id?: boolean;
-  sort?: Array<Sort | string>;
+  sort?: Array<Sort | str>;
   pag?: number;
   limit?: number;
   where?: str[];
   query?: string;
-  queryBy?: Array<string>;
+  queryBy?: Array<PropertyKey>;
 }
 export interface SelectResult {
   one: any;
@@ -624,8 +624,8 @@ export class Bond {
   all: Dic[];
   readonly groupBy: L<str>;
   readonly sort: L<Sort, str>;
-  readonly queryBy: L<str>;
-  readonly fields: L<str>;
+  readonly queryBy: L<PropertyKey>;
+  readonly fields: L<PropertyKey>;
   w: Dic<any>;
   constructor(src: DataSource, opts: BondOptions | str[] = {}) {
     isA(opts) && (opts = { fields: opts });
@@ -640,10 +640,10 @@ export class Bond {
     this.sort = orray<Sort, str>(opts.sort, {
       parse: k => isS(k) ? [k] : k, key: 0
     }).on(onupd);
-    this.fields = orray<str>(opts.fields || filter(src.fields.map(f => t(f.get) && f.name)), f => {
+    this.fields = orray(opts.fields || filter(src.fields.map(f => t(f.get) && f.name)), f => {
       // if (!byKey(e.fields, (f = (isS(f) ? { key: f } : f)).key, "name"))
       if (!byKey(src.fields, f, "name"))
-        throw notF(f, "field", src);
+        throw notF(f as Key, "field", src);
       return f;
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
@@ -805,8 +805,8 @@ export function searchBy({ queryBy: q, src: ent }: Bond) {
   let mn = menu([
     menucb(l(list) == l(q) ? true : !l(q) ? false : null, w.all, v => q.set(v && list.map(f => f.name)), "all"),
     menusep(),
-    ...list.map(f => menucb(q.includes(f.name), def(f.text, up(f.name)),
-      ch => ch ? q.push(f.name) : q.remove(f.name), f.name))
+    ...list.map(f => menucb(q.includes(f.name), def(f.text, up(f.name as str)),
+      ch => ch ? q.push(f.name) : q.remove(f.name), f.name as str))
   ]);
   q.on(() => {
     mn.query<HTMLInputElement>("#all").p({ checked: l(list) == l(q), indeterminate: l(q) && l(list) != l(q) });
@@ -1039,18 +1039,21 @@ export const
   fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
 
 type _<T> = { req?: bool; def?: T; text?: str; query?: bool, set?: bool };
-export const fText = (name: str, { req, def, text, query, input, set }: _<str> & { input?: TextInputTp | "ta" }): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
-export const fDate = (name: str, { req, def, text, set }: _<str>): Field => ({ name, text, set: t(set), in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
-export const fTime = (name: str, { req, def, text, set }: _<str>): Field => ({ name, text, set: t(set), in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
-export const fNumb = (name: str, { req, def, text, set }: _<float>): Field => ({ name, text, set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
-export const fCheck = (name: str, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) }): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
-export const fSelect = <T extends Dic, K extends keyof T>(name: str, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
-export const fRadio = (name: str, options: RadioOption[], { req, def, text, set, query }: _<Key>): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
+export const fText = (name: PropertyKey, { req, def, text, query, input, set }: _<str> & { input?: TextInputTp | "ta" } = {}): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
+export const fDate = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
+export const fTime = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
+export const fNumb = (name: PropertyKey, { req, def, text, set }: _<float> = {}): Field => ({ name, text, set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
+export const fCheck = (name: PropertyKey, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) } = {}): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
+export const fSelect = <T extends Dic, K extends keyof T>(name: PropertyKey, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
+export const fRadio = (name: PropertyKey, options: RadioOption[], { req, def, text, set, query }: _<Key> = {}): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
 
-export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): DataSource {
+export interface ArrayDataSource<T extends AnyDic> extends DataSource {
+  src: T[];
+}
+export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): ArrayDataSource<T> {
   let currentId = 1;
   return {
-    id, fields,
+    src, id, fields,
     get(bond) {
       return new Promise((cb) => {
         let dt = src;
@@ -1128,6 +1131,7 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
         r.push({ [id]: item[id] });
         src.push(item);
       }
+
       return r;
     },
     put(dt) {
@@ -1145,9 +1149,40 @@ export function fromArray<T extends Dic = Dic>(src: T[], fields: Field[], id: ke
           src.splice(index, 1);
       }
     },
-  }
+  };
 }
 
+type Method = "GET" | "POST" | "PUT" | "DELETE";
+type Fetch = (method: Method, body: any, signal?: AbortSignal) => any;
+export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], id: keyof T = "id" as any): DataSource {
+  if (isS(url)) {
+    let _ = url;
+    url = async (method, body, signal) => {
+      let r = await fetch(_, { method, body: json(body), signal });
+      let dt = await r.json();
+      if (r.ok)
+        return dt;
+
+      mdError(isS(dt) ? dt : json(dt));
+      throw dt;
+    }
+  }
+  return {
+    fields, id,
+    get(bond, signal) {
+      return (url as Fetch)("GET", bond, signal);
+    },
+    post(dt) {
+      return (url as Fetch)("POST", dt);
+    },
+    put(dt) {
+      return (url as Fetch)("PUT", dt);
+    },
+    del(dt) {
+      return (url as Fetch)("DELETE", dt);
+    },
+  }
+}
 //#region indexed db
 
 type IDBBuilder = (() => Promise<IDBDatabase>) & { stores: any[], db?: IDBDatabase };
