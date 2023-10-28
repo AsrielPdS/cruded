@@ -19,8 +19,8 @@ simple form auto generated
 - support diferent data source
     - `fromArray` get data from simple array
     - `fromIDB` get data from IndexedDB (todo)
-    - `fromRestAPI` get data from url usand `REST API` patterns 
-    - `fromMethods` get data from custom methods
+    - `fromFetch` get data from url `REST API` using fetch API 
+    - custom data source
 - generate form for field list
     - autofill form when update an record
     - validate form basead on options in fields (ex: req, min, max)
@@ -30,7 +30,22 @@ simple form auto generated
 
 ### with npm
 
-` npm i cruded `
+```console 
+npm i galho galhui cruded 
+```
+
+### add style 
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galhui/themes/basic.light.css" />
+```
+or 
+to include this in the js/ts file, this need a bundler like vite or webpack to work
+```js
+import "galhui/themes/basic.dark.css";
+```
+
+there are three variation
+`dark`, `light` and `both` (dark will be used when prefers-color-scheme: dark)
 
 <!-- ### with yarn
 
@@ -54,6 +69,7 @@ you need to include `galho` as reference
 ```js
 import { crud, fromArray, fText,fRadio } from "cruded";
 import { get } from "galho";
+import "galhui/themes/basic.dark.css";
 
 const list = [
   { id: 1, fname: "Bobette", lname: "Oldroyde",  gender: "F", tel: "508-974-4484", addr: "Room 1396"  },
@@ -92,8 +108,85 @@ get("body").add(myCrud);
 **field** - represent an `dataSource` field, except when readInly each field should have an associated input.
 
 ## api
+### create field
 
-### dataSource
+cruded came with a collection of field that
+ 
+```js
+import { fText,fDate,fTime,fNumb,fCheck,fSelect,fRadio } from "cruded";
+//req abbr for required, by default is not requred
+//def-> default value
+//input is input type, text field input can be text(default),email,tel,url,ta(textarea)
+//set define if this field should be in form for create ou update by default set is true 
+const field1 = fText("field_name",{req:true,def:null,text:"Render field name",input:"email",set:false});
+
+//def:"now" can be used both Date and Time field  
+const field2 = fDate("birthDate",{def:"now"});
+const field3 = fTime("currentTime");
+
+//int is for input validation
+const field4 = fNumb("price",{min:2,max:4500,int:false});
+
+//fmt -> define how field will be rendered there is 3 default format yn->yesNo, tf->trueFalse, icon(default)->check,close icons
+const field5 = fCheck("onSale",{def:true,fmt:"yn"});
+
+//options can be shared between multiple fields, for ts  import RadioOption for validation
+const rOptions = [
+  ["E","Edible"],
+  ["N","Not Edible"  ],
+  //...
+];
+const field6 = fRadio("type",rOptions);
+
+//can be any data type
+const sOptions = [
+ {abbr:"AO",name:"Angola"},
+ {abbr:"US",name:"Unated States",lang:"English"},
+ {abbr:"BR",name:"Brasil"},
+ {abbr:"FR",name:"France",capital:"paris"},
+ //...
+];
+//key is key field in the options
+//view is what will be rendered in crud table
+const field7 = fSelect("nationality",sOptions,{key:"abbr",view:i=>`${i.name}(${i.abbr})`});
+```
+
+### create dataSource
+
+create from Array
+```js
+import { fromArray } from "cruded";
+
+//arg1: array where data will be stored, don't need to be empty
+//arg2: fields
+//arg3: id field, don't need be part of table for autoIncrement id default is 'id'
+//arg4: autoIncrement
+const src = fromArray([],[field1,field2,field3]);
+```
+
+create from Restful API
+
+```js
+import { fromFetch } from "cruded";
+
+//arg1: url used for get, post, put, delete
+//arg2: fields
+//arg3: other options liker 'headers'
+const src = fromFetch("/customers",[field1,field2,field3]);
+```
+
+### post, put, delete
+
+```js
+//add items
+src.post([{field1:1,field2:"Same value",field3:true}]);
+
+//update field2 of record with id:234
+src.put([{id:234,field2:"New Value"}]);
+
+//remove record with id:234
+src.del([234]);
+```
 
 ### Form
 
