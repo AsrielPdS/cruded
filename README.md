@@ -84,7 +84,7 @@ const src = fromArray(list, [
   fText("fname", { req: true, text: w.fname }),
   fText("lname", { req: true, text: w.lname }),
   fText("tel", { input: "tel" }),
-  fRadio("gender", [["F", w.genderF], ["M", w.genderM]], { text: w.gender }),
+  fRadio("gender", [["F", "Female"], ["M", "Male"]], { text: w.gender }),
   fText("addr", { text: w.addr }),
 ]);
 
