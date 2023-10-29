@@ -10,12 +10,17 @@ basic crud in dark mode
 simple form auto generated
 ![simple form auto generated](/sample/form-dark.png)
 
+## if u have some proble using the library
+
+[Ask here](https://github.com/AsrielPires/cruded/issues)
+
 ## Functionalities
 
 - generate list for pagination
 - search input
 - contextmenu per item
 - diferent field types
+- multilanguage
 - support diferent data source
     - `fromArray` get data from simple array
     - `fromIDB` get data from IndexedDB (todo)
