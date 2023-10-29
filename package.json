@@ -8,6 +8,7 @@
     "galhui": ""
   },
   "type": "module",
+  "sideEffects": false,
   "homepage": "https://asrielpires.github.io/?_=cruded",
   "repository": "github:AsrielPires/cruded",
   "keywords": [

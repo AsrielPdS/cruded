@@ -1,7 +1,7 @@
 import { assign } from "galho/util";
 import { icons, w } from "galhui";
 
-export function EN() {
+export function setEN() {
   assign<Partial<Words>>(w, {
     //galhui
     cancel: "Cancel",
@@ -24,7 +24,7 @@ export function EN() {
     true: "True",
   });
 }
-export function PT() {
+export function setPT() {
   assign<Partial<Words>>(w, {
     //galhui
     cancel: "Cancelar",
@@ -48,7 +48,7 @@ export function PT() {
 
   });
 }
-export function FR() {
+export function setFR() {
   assign<Partial<Words>>(w, {
     //galhui
 
@@ -56,7 +56,7 @@ export function FR() {
 
   });
 }
-export function ES() {
+export function setES() {
   assign<Partial<Words>>(w, {
     //galhui
 
@@ -65,7 +65,7 @@ export function ES() {
   });
 }
 
-export function defIcon() {
+export function setIcons() {
   assign(icons, {
     //galhui
     close: "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",

@@ -50,7 +50,46 @@ import "galhui/themes/basic.dark.css";
 ```
 
 there are three variation
-`dark`, `light` and `both` (dark will be used when prefers-color-scheme: dark)
+`basic.dark`, `basic.light` and `basic` (dark will be used when prefers-color-scheme: dark and light otherwise)
+
+### localizations and icons
+
+```js
+import {setEN,setIcons} from "cruded/config.js";
+
+//define words to english
+setEN();
+
+//define icons
+setIcons();
+```
+
+for custom words or icons do
+
+```js
+import { icons, w } from "galhui";
+
+Object.assign(icons, {
+  plus: "M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z",
+  prev: "M14,7L9,12L14,17V7Z",
+  next: "M10,17L15,12L10,7V17Z",
+  //...
+});
+//w -> all words used in the library
+Object.assign(w, {
+  add: "...",
+  confirmRemove: "...",
+  confirmRemoveMany: "...",
+  duplicate: "...",
+  edit: "...",
+  editItemTitle: "...",
+  newItemTitle: "...",
+  remove: "...",
+  save: "...",
+  showAll: "...",
+});
+
+```
 
 <!-- ### with yarn
 
