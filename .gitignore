@@ -1,5 +1,5 @@
-cruded.js
-cruded.d.ts
+*.js
+*.d.ts
 # Logs
 logs
 *.log
