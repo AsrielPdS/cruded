@@ -16,6 +16,7 @@ declare global {
   }
   interface Words {
     all?: str;
+    save?: str;
     add: str; edit: str; remove: str;
     confirmRemove: str,
     confirmRemoveMany: str;
@@ -23,8 +24,8 @@ declare global {
     newItemTitle: str;
     showAll: str;
     duplicate: str;
-    true: str; yes?: str;
-    false: str; no?: str;
+    true: str; 
+    false: str;
   }
   module Cruded {
     interface DataSource {
@@ -1067,6 +1068,7 @@ interface DataSourceOptions<T extends AnyDic> {
   /**@default "id" */
   id?: keyof T;
   autoIncrement?: bool;
+  s?: str; p?: str;
 }
 export interface ArrayDataSource<T extends AnyDic> extends DataSource {
   src: T[];
@@ -1077,7 +1079,7 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
   let id: keyof T = opts.id ||= <any>"id";
   let ai = def(opts.autoIncrement, id == "id");
   let ds: ArrayDataSource<T> = {
-    id, fields,
+    id, fields, s: opts.s, p: opts.p,
     src, main: opts.main || fields[0].name,
     get(bond) {
       return new Promise((cb) => {
