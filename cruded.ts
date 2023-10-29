@@ -104,6 +104,7 @@ export function pagging(bond: Bond, setlimit?: bool, extreme = setlimit) {
     pag: bond.pag,
     min: bond.limit,
     limit: bond.limit,
+    total: bond.length,
     extreme,
     setlimit
   }).on((e) => {
@@ -552,7 +553,7 @@ export interface DataSource extends Cruded.DataSource {
   /**id field */
   id?: PropertyKey;
   /**main field */
-  main?: str;
+  main?: PropertyKey;
   fields?: Field[];
   get?<T extends keyof SelectResult = "rows">(bond: ISelect<T>, cancel?: AbortSignal): Promise<SelectResult[T]>;
   /**insert data to source
@@ -572,6 +573,18 @@ export interface DataSource extends Cruded.DataSource {
   s?: str;
   /**plural name */
   p?: str;
+}
+
+export function reload(src: DataSource) {
+  if (src.bonds) {
+    let t1: Promise<SelectRowsResult>[] = [];
+    for (let i = 0; i < src.bonds.length; i++) {
+      let b = src.bonds[i].deref();
+      if (b) t1[i] = b.update();
+      else src.bonds.splice(i--, 1)
+    }
+    return t1;
+  }
 }
 
 export type Sort<K extends PropertyKey = PropertyKey> = [field: K, desc?: bool];
@@ -600,11 +613,11 @@ export interface ISelect<T extends GT = "rows"> {
 }
 export interface SelectResult {
   one: any;
-  row: Dic;
+  row: AnyDic;
   arr: any[];
   grid: any[][];
   col: any[];
-  rows: Dic[];
+  rows: AnyDic[];
   full: SelectRowsResult;
 }
 /**get type */
@@ -915,24 +928,24 @@ export async function mdPost(ent: DataSource, form?: FormBase) {
   form ||= ent.form ? await ent.form(ent) : new Form(ent.fields.map(f => f.set && f.in()));
   return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
-export async function mdPut(ent: DataSource, id: any, form?: FormBase) {
-  let src = await ent.get({ tp: "row", where: [`${ent.id as str}='${id}'`], src: true });
-  if (ent.mdform) return ent.mdform(src);
+export async function mdPut(src: DataSource, id: any, form?: FormBase) {
+  let dt = await src.get({ tp: "row", where: [`${src.id as str}='${id}'`], src: true });
+  if (src.mdform) return src.mdform(dt);
 
   modal(
-    [0, sentence(w.editItemTitle, { src: ent.s, item: g("strong", 0, src[ent.main]) })],
-    (form ||= ent.form ? await ent.form(ent, true) : new Form(ent.fields.map(f => def(f.edit, f.set) && f.in()))).set("tag", "div").fill(src, true),
+    [0, sentence(w.editItemTitle, { src: src.s, item: g("strong", 0, dt[src.main]) })],
+    (form ||= src.form ? await src.form(src, true) : new Form(src.fields.map(f => def(f.edit, f.set) && f.in()))).set("tag", "div").fill(dt, true),
     (cl, md) => [
       bt(w.save, async e => {
         clearEvent(e);
         if (form.valid())
-          await busy(md, () => ent.put([assign<Dic, Put>(form.data(true), { id })]));
+          await busy(md, () => src.put([assign<Dic, Put>(form.data(true), { id })]));
         cl();
       }, "submit").c("accept"),
-      ent.post && bt(w.duplicate, async e => {
+      src.post && bt(w.duplicate, async e => {
         clearEvent(e);
         if (form.valid())
-          await busy(md, () => ent.post([form.data()]));
+          await busy(md, () => src.post([form.data()]));
         cl();
       }, "submit"),
       cancel(cl)
@@ -1005,7 +1018,6 @@ export async function crud(bond: Bond, i: Crud = {}) {
   ];
 }
 
-
 export const cbFormats = {
   icon: (v: bool) => icon(v == null ? icons.null : v ? icons.check : icons.close),
   /**yes | no */
@@ -1047,13 +1059,26 @@ export const fCheck = (name: PropertyKey, { req, def, text, set, fmt }: _<bool> 
 export const fSelect = <T extends Dic, K extends keyof T>(name: PropertyKey, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
 export const fRadio = (name: PropertyKey, options: RadioOption[], { req, def, text, set, query }: _<Key> = {}): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
 
+interface DataSourceOptions<T extends AnyDic> {
+  /**
+   * @default first field
+   */
+  main?: PropertyKey;
+  /**@default "id" */
+  id?: keyof T;
+  autoIncrement?: bool;
+}
 export interface ArrayDataSource<T extends AnyDic> extends DataSource {
   src: T[];
 }
-export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id: keyof T = "id" as any, autoIncrement = id == "id"): ArrayDataSource<T> {
+export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opts: DataSourceOptions<T> = {}) {
+  //id: keyof T = "id" as any, autoIncrement = id == "id"
   let currentId = 1;
-  return {
-    src, id, fields,
+  let id: keyof T = opts.id ||= <any>"id";
+  let ai = def(opts.autoIncrement, id == "id");
+  let ds: ArrayDataSource<T> = {
+    id, fields,
+    src, main: opts.main || fields[0].name,
     get(bond) {
       return new Promise((cb) => {
         let dt = src;
@@ -1090,7 +1115,7 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id:
             dt.sort((a, b) => {
               let _a = a[field];
               let _b = b[field];
-              return _a == _b ? 0 : (_a > _b ? 1 : -1) * _d;
+              return _a == _b ? 0 : (_b == null ? -1 : _a == null ? 1 : _b > _a ? 1 : -1) * _d;
             });
           }
         }
@@ -1124,14 +1149,14 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id:
       let r = Array<AnyDic>(l(dt));
       for (let item of dt) {
         if (item[id] == null)
-          if (autoIncrement) item[id] = currentId++ as any;
+          if (ai) item[id] = currentId++ as any;
           else throw "invalid";
         if (byKey(src, item[id], id))
           throw "invalid";
         r.push({ [id]: item[id] });
         src.push(item);
       }
-
+      reload(ds);
       return r;
     },
     put(dt) {
@@ -1141,6 +1166,7 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id:
           (old as any)[key] = item[key];
         else console.warn(`item of id '${item.id}' not found`)
       }
+      reload(ds);
     },
     del(ids) {
       for (let item of ids) {
@@ -1148,13 +1174,15 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], id:
         if (index != -1)
           src.splice(index, 1);
       }
+      reload(ds);
     },
   };
+  return ds;
 }
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 type Fetch = (method: Method, body: any, signal?: AbortSignal) => any;
-export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], id: keyof T = "id" as any): DataSource {
+export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], id: keyof T = "id" as any) {
   if (isS(url)) {
     let _ = url;
     url = async (method, body, signal) => {
@@ -1167,29 +1195,35 @@ export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], i
       throw dt;
     }
   }
-  return {
+  let src: DataSource = {
     fields, id,
     get(bond, signal) {
       return (url as Fetch)("GET", bond, signal);
     },
-    post(dt) {
-      return (url as Fetch)("POST", dt);
+    async post(dt) {
+      let r = await (url as Fetch)("POST", dt);
+      reload(src);
+      return r;
     },
-    put(dt) {
-      return (url as Fetch)("PUT", dt);
+    async put(dt) {
+      let r = await (url as Fetch)("PUT", dt);
+      reload(src);
+      return r;
     },
-    del(dt) {
-      return (url as Fetch)("DELETE", dt);
+    async del(dt) {
+      let r = await (url as Fetch)("DELETE", dt);
+      reload(src);
+      return r;
     },
   }
+  return src;
 }
 //#region indexed db
 
 type IDBBuilder = (() => Promise<IDBDatabase>) & { stores: any[], db?: IDBDatabase };
 type Ev<R = IDBDatabase, E extends Event = Event> = E & { target: { errorCode: any, result: R } };
 // stores: Dic<(db: IDBDatabase) => any>
-export function createDb(name: str, version: int): IDBBuilder {
-
+export function createIDB(name: str, version: int): IDBBuilder {
   let me = assign(() => {
     return new Promise<IDBDatabase>((ok, err) => {
 
