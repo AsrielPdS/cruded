@@ -3,7 +3,7 @@ import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
 import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
-import { Button, arrayToDic, up } from "galhui/util.js";
+import { Button, up } from "galhui/util.js";
 
 declare global {
   interface Settings {
@@ -24,7 +24,7 @@ declare global {
     newItemTitle: str;
     showAll: str;
     duplicate: str;
-    true: str; 
+    true: str;
     false: str;
   }
   module Cruded {
@@ -590,14 +590,15 @@ export function reload(src: DataSource) {
 
 export type Sort<K extends PropertyKey = PropertyKey> = [field: K, desc?: bool];
 export interface BondOptions {
-  fields?: str[];
+  fields?: PropertyKey[];
   sort?: Array<Sort | str>;
   pag?: number;
   limit?: number;
-  where?: any[] | Dic<any>;
+  where?: Filter[];
   query?: string;
   queryBy?: Array<string>;
 }
+export type Filter = [field: PropertyKey, value: any, type?: str];
 export interface ISelect<T extends GT = "rows"> {
   tp?: T;
   fields?: (PropertyKey | [field: PropertyKey, exp: str])[];
@@ -608,7 +609,7 @@ export interface ISelect<T extends GT = "rows"> {
   sort?: Array<Sort | str>;
   pag?: number;
   limit?: number;
-  where?: str[];
+  where?: Filter[];
   query?: string;
   queryBy?: Array<PropertyKey>;
 }
@@ -640,8 +641,8 @@ export class Bond {
   readonly sort: L<Sort, str>;
   readonly queryBy: L<PropertyKey>;
   readonly fields: L<PropertyKey>;
-  w: Dic<any>;
-  constructor(src: DataSource, opts: BondOptions | str[] = {}) {
+  w: Filter[];
+  constructor(src: DataSource, opts: BondOptions | PropertyKey[] = {}) {
     isA(opts) && (opts = { fields: opts });
     this.src = src;
     this.#limit = def(opts.limit, $.defLimit);
@@ -661,7 +662,7 @@ export class Bond {
       return f;
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
-    this.w = isA(opts.where) ? arrayToDic(opts.where, (w, i) => [i, w]) : opts.where;
+    this.w = opts.where;
   }
   get pags() {
     return this.#limit ? Math.ceil(this.length / this.#limit) : 1;
@@ -710,13 +711,18 @@ export class Bond {
     else
       return this.list.map(f => t.id || f.id);
   }
-  where(key: Key, value?: any) {
-    if ((this.w ||= {})[key] !== value) {
-      if (value)
-        this.w[key] = value;
-      else delete this.w[key];
-      this.update(true);
-    }
+  rmvFilter(key: PropertyKey) {
+    let i = iByKey(this.w ||= [], key, 0);
+    if (i != -1) this.w.splice(i, 1);
+    return this;
+  }
+  where(key: PropertyKey, value: any, type?: str) {
+    let i = byKey(this.w ||= [], key, 0);
+    if (i) {
+      i[1] = value; i[2] = type;
+    } else this.w.push(i = [key, value, type]);
+    if (!i[2]) i.pop();
+    this.update(true);
     return this;
   }
   bind<T extends Dic>(list?: L<T> | IList<T>): L<T> {
@@ -783,7 +789,7 @@ export class Bond {
         let exp = byKey(src.fields, f, "name").exp;
         return exp ? [f, exp] : f;
       }),//`as(${f.e},'${f.key}')` : .map(f => l(Object.keys(f)) > 1 ? f : f.key)
-      where: w && Object.values(w),
+      where: w,
       limit,
       pag: p == 1 ? void 0 : p,
       query: q || undefined,
@@ -812,8 +818,8 @@ export const search = (bond: Bond) => g("label", "_ in", [
   // icon(icons.search)
   ibt(icons.search, null, () => bond.update())
 ]);
-export function searchBy({ queryBy: q, src: ent }: Bond) {
-  let list = ent.fields.filter(f => f.query);
+export function searchBy({ queryBy: q, src }: Bond) {
+  let list = src.fields.filter(f => f.query);
   if (!list.length) return null;
   // let all: S<HTMLInputElement> = g("input", { type: "checkbox" }).on("input", () => );
   let mn = menu([
@@ -930,7 +936,7 @@ export async function mdPost(ent: DataSource, form?: FormBase) {
   return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
 export async function mdPut(src: DataSource, id: any, form?: FormBase) {
-  let dt = await src.get({ tp: "row", where: [`${src.id as str}='${id}'`], src: true });
+  let dt = await src.get({ tp: "row", where: [[src.id, id]], src: true });
   if (src.mdform) return src.mdform(dt);
 
   modal(
@@ -1075,9 +1081,10 @@ export interface ArrayDataSource<T extends AnyDic> extends DataSource {
 }
 export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opts: DataSourceOptions<T> = {}) {
   //id: keyof T = "id" as any, autoIncrement = id == "id"
-  let currentId = 1;
   let id: keyof T = opts.id ||= <any>"id";
   let ai = def(opts.autoIncrement, id == "id");
+  if (ai)
+    var currentId = (sub(src, id).reduce((a, b) => a > b ? a : b) || 1) + 1;
   let ds: ArrayDataSource<T> = {
     id, fields, s: opts.s, p: opts.p,
     src, main: opts.main || fields[0].name,
@@ -1085,28 +1092,39 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
       return new Promise((cb) => {
         let dt = src;
         //TODO: query
-        // if (bond.query) {
-        //   let qb = bond.queryBy || fields.filter(f => f.query).map(f => f.name);
-        //   if (l(qb)) {
-        //     let vs = filter((bond.query + "").replaceAll('%', '\%').split(' '));
-        //     for (let i = 0; i < vs.length; i++) {
-        //       let assign = '';
-        //       let pattern = lit(`%${vs[i]}%`);
-        //       for (let i = 0; i < bond.queryBy.length; i++) {
-        //         if (i)
-        //           assign += ' OR ';
-        //         assign += like(this.field(bond.queryBy[i]), pattern);
-        //       }
-        //       w.push(assign);
-        //     }
-        //   }
-        // }
+        if (bond.query) {
+          let qb = bond.queryBy || fields.filter(f => f.query).map(f => f.name);
+          if (l(qb)) {
+            let vs = filter(bond.query.split(' ')).map(v => v.toLocaleUpperCase());
+            dt = dt.filter(i => {
+              for (let v of vs) {
+                let ok: bool;
+                for (let field of qb) {
+                  if (ok = (i[field] + "").toLocaleUpperCase().includes(v))
+                    break;
+                }
+                if (!ok) return false;
+              }
+              return true;
+            });
+            // let vs = filter((bond.query + "").replaceAll('%', '\%').split(' '));
+            // for (let i = 0; i < vs.length; i++) {
+            //   let assign = '';
+            //   let pattern = lit(`%${vs[i]}%`);
+            //   for (let i = 0; i < bond.queryBy.length; i++) {
+            //     if (i)
+            //       assign += ' OR ';
+            //     assign += like(this.field(bond.queryBy[i]), pattern);
+            //   }
+            //   w.push(assign);
+            // }
+          }
+        }
         if (bond.where?.length) {
-          dt = src.filter(i => {
-            i;
-            //TODO: wherr
-            // for (let filter of bond.where)
-
+          dt = dt.filter(i => {
+            for (let [field, v] of bond.where)
+              if (i[field] != v)
+                return false;
             return true;
           });
         }
