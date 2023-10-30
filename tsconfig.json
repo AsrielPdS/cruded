@@ -5,6 +5,7 @@
       "ESNext",
       "DOM"
     ],
+    "inlineSourceMap": true,
     "forceConsistentCasingInFileNames": true,
     "declaration": true,
     "module": "esnext",
