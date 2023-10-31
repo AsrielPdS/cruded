@@ -1,6 +1,6 @@
 {
   "name": "cruded",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "",
   "main": "cruded.js",
   "dependencies": {
@@ -9,8 +9,8 @@
   },
   "type": "module",
   "sideEffects": false,
-  "homepage": "https://asrielpires.github.io/?_=cruded",
-  "repository": "github:AsrielPires/cruded",
+  "homepage": "https://AsrielPdS.github.io/?_=cruded",
+  "repository": "github:AsrielPdS/cruded",
   "keywords": [
     "crud",
     "web",
@@ -18,6 +18,5 @@
     "galho",
     "ui"
   ],
-  "author": "Asriel Pires",
-  "license": "ISC"
+  "author": "Asriel Pd Santos"
 }
