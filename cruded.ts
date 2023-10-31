@@ -810,7 +810,7 @@ export class Bond {
     return this;
   }
   toJSON(): ISelect<"full"> {
-    let { query: q, queryBy: b, fields: f, w, #s: s, #d: d, src, limit, pag: p } = this;
+    let { query: q, queryBy: b, fields: f, w, src, limit, pag: p } = this;
     return {
       tp: "full",
       fields: !l(f) || l(src.fields) == l(f) ? void 0 : f.map(f => {
@@ -822,7 +822,7 @@ export class Bond {
       pag: p == 1 ? void 0 : p,
       query: q || undefined,
       queryBy: q && l(b) ? b : undefined,
-      sort: s, desc: d,
+      sort: this.#s, desc: this.#d,
       // total: true
     };
   }
