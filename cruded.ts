@@ -129,19 +129,21 @@ export interface iTForm extends iFormBase {
 
 }
 export class TForm extends FormBase<iTForm> {
-  #f: Input;
+  #i: Input;
   constructor(i: iFormBase, public cols: One[], inputs: Input[]) {
     super(i, inputs);
-    inputs.map(i => {
+    for (let i of inputs) {
       i.form = this;
-      g(i.onset(["value", "off"], () => {
-        i.visited && this.setErrors(i.name, i.validate(i.value));
-        g(i).attr({
-          edited: !i.isDef(),
-          disabled: !!i.p.off
-        });
-      })).on("focusin", () => this.#f = i)
-    });
+      i
+        .onset(["value", "off"], () => {
+          i.visited && this.setErrors(i.name, i.validate(i.value));
+          g(i).attr({
+            edited: !i.isDef(),
+            disabled: !!i.p.off
+          });
+        })
+        .observeVisited(i => this.#i = i)
+    }
   }
   view() {
     return g("form", "ft tr", [div(C.side), this.cols]).on({
@@ -150,7 +152,7 @@ export class TForm extends FormBase<iTForm> {
         this.emit("requestsubmit", e);
       },
       keydown: e => {
-        let _ = g(this.#f);
+        let _ = g(this.#i);
         switch (e.key) {
           case "ArrowLeft":
             while (_ = _.prev)
@@ -817,8 +819,7 @@ export class Bond {
         let exp = byKey(src.fields, f, "name").exp;
         return exp ? [f, exp] : f;
       }),//`as(${f.e},'${f.key}')` : .map(f => l(Object.keys(f)) > 1 ? f : f.key)
-      where: w,
-      limit,
+      where: w, limit,
       pag: p == 1 ? void 0 : p,
       query: q || undefined,
       queryBy: q && l(b) ? b : undefined,
@@ -1248,7 +1249,7 @@ export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], {
   }
   let src: DataSource = {
     fields, id: id || <any>"id",
-    get:(bond, signal) =>{
+    get: (bond, signal) => {
       return (url as Fetch)("GET", bond, signal);
     },
     async post(dt) {
