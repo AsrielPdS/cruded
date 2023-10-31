@@ -5,9 +5,11 @@ it's an utility library for create crud
 [Demo](https://asrielpires.github.io/?_=cruded)
 
 basic crud in dark mode
+
 ![basic crud in dark mode](/sample/dark.png)
 
 simple form auto generated
+
 ![simple form auto generated](/sample/form-dark.png)
 
 ## if u have some proble using the library
