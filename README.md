@@ -2,19 +2,15 @@
 
 it's an utility library for create crud
 
-[Demo](https://asrielpires.github.io/?_=cruded)
-
 basic crud in dark mode
 
-![basic crud in dark mode](/sample/dark.png)
+![basic crud in dark mode](/sample/demo.gif)
 
-simple form auto generated
+[Demo](https://AsrielPdS.github.io/?_=cruded)
 
-![simple form auto generated](/sample/form-dark.png)
+## if u have some problem using the library
 
-## if u have some proble using the library
-
-[Ask here](https://github.com/AsrielPires/cruded/issues)
+[Ask here](https://github.com/AsrielPdS/cruded/issues)
 
 ## Functionalities
 
@@ -77,7 +73,7 @@ Object.assign(icons, {
   next: "M10,17L15,12L10,7V17Z",
   //...
 });
-//w -> all words used in the library
+//w -> words used in the library
 Object.assign(w, {
   add: "...",
   confirmRemove: "...",
