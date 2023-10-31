@@ -1,6 +1,6 @@
 import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { AnyDic, Dic, Key, Pair, Task, arr, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
+import { AnyDic, Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
 import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
 import { Button, up } from "galhui/util.js";
@@ -174,11 +174,7 @@ export class TForm extends FormBase<iTForm> {
 }
 
 type DataType = 's' | 'd' | 'b' | 'n';
-export interface ViewSort {
-  multiple?: bool;
-  clear?: bool;
-  call(column: Column, active: bool): any;
-}
+
 //todo: transferir algumas das propiedadas para o $
 export interface FieldPlatform {
   null?: (() => G) | str;
@@ -234,7 +230,8 @@ interface iTable<T extends AnyDic> extends ICrud<T> {
 
   key?: PropertyKey;
   style?: RecordStyle;
-  sort?: ViewSort;
+  sort(column: PropertyKey, desc: bool, active: bool): any;
+  clearSort?: bool;
   corner?: any;
   p?: FieldPlatform;
   fill?: bool;
@@ -335,7 +332,7 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
             c.desc = false;
             cols.tag("sort", c);
           }
-        })
+        });
         hdOpts && s.on({
           mouseenter() { clearTimeout(hdOptsLeave); s.add(hdOpts) },
           mouseleave() { hdOptsLeave = setTimeout(() => hdOpts.remove().child(".menu")?.remove(), 300); }
@@ -349,7 +346,7 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
             s.child(".sort")?.remove();
             if (active)
               s.add(icon(icons[v.desc ? 'desc' : 'asc']).c("sort"));
-            i.sort.call(v, active);
+            i.sort(v.key, v.desc, active);
             break;
           default:
             s.c(tag, active);
@@ -588,10 +585,10 @@ export function reload(src: DataSource) {
   }
 }
 
-export type Sort<K extends PropertyKey = PropertyKey> = [field: K, desc?: bool];
 export interface BondOptions {
   fields?: PropertyKey[];
-  sort?: Array<Sort | str>;
+  sort?: PropertyKey;
+  desc?: bool;
   pag?: number;
   limit?: number;
   where?: Filter[];
@@ -603,10 +600,11 @@ export interface ISelect<T extends GT = "rows"> {
   tp?: T;
   fields?: (PropertyKey | [field: PropertyKey, exp: str])[];
   /**return original value */
-  src?: boolean;
+  src?: bool;
   /**if shoul get id @default true */
-  id?: boolean;
-  sort?: Array<Sort | str>;
+  id?: bool;
+  sort?: PropertyKey;
+  desc?: bool
   pag?: number;
   limit?: number;
   where?: Filter[];
@@ -638,7 +636,6 @@ export class Bond {
   readonly src: DataSource;
   all: Dic[];
   readonly groupBy: L<str>;
-  readonly sort: L<Sort, str>;
   readonly queryBy: L<PropertyKey>;
   readonly fields: L<PropertyKey>;
   w: Filter[];
@@ -652,9 +649,9 @@ export class Bond {
       this.update(true);
     };
     this.query = opts.query;
-    this.sort = orray<Sort, str>(opts.sort, {
-      parse: k => isS(k) ? [k] : k, key: 0
-    }).on(onupd);
+    this.#s = opts.sort;
+    this.#d = opts.desc;
+
     this.fields = orray(opts.fields || filter(src.fields.map(f => t(f.get) && f.name)), f => {
       // if (!byKey(e.fields, (f = (isS(f) ? { key: f } : f)).key, "name"))
       if (!byKey(src.fields, f, "name"))
@@ -663,6 +660,37 @@ export class Bond {
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
     this.w = opts.where;
+  }
+  #s: PropertyKey;
+  #d: bool;
+
+  sort(): PropertyKey;
+  sort(v: PropertyKey): this
+  sort(v?: PropertyKey) {
+    if (isU(v))
+      return this.#s;
+    else {
+      if (v != this.#s) {
+        if (v == null)
+          this.#d = void 0;
+        this.#s = v;
+        this.update(true);
+      }
+      return this;
+    }
+  }
+  desc(): bool;
+  desc(v: bool): this
+  desc(v?: bool) {
+    if (isU(v))
+      return this.#d;
+    else {
+      if (v != this.#d) {
+        this.#d = v;
+        this.update(true);
+      }
+      return this;
+    }
   }
   get pags() {
     return this.#limit ? Math.ceil(this.length / this.#limit) : 1;
@@ -782,7 +810,7 @@ export class Bond {
     return this;
   }
   toJSON(): ISelect<"full"> {
-    let { query: q, queryBy: b, fields: f, w, sort: s, src, limit, pag: p } = this;
+    let { query: q, queryBy: b, fields: f, w, #s: s, #d: d, src, limit, pag: p } = this;
     return {
       tp: "full",
       fields: !l(f) || l(src.fields) == l(f) ? void 0 : f.map(f => {
@@ -794,7 +822,7 @@ export class Bond {
       pag: p == 1 ? void 0 : p,
       query: q || undefined,
       queryBy: q && l(b) ? b : undefined,
-      sort: s.length ? s : undefined,
+      sort: s, desc: d,
       // total: true
     };
   }
@@ -924,7 +952,8 @@ export function etable(bond: Bond, i: itable = {}) {
     open: v => mdPut(src, v?.id),
     remove: v => tryRemove(src, sub(v, src.id || "id")),
     allColumns, reqColumns: i.req || [src.main], key: src.id || "id",
-    sort: { clear: true, call({ key, desc }, active) { bond.sort.set(active && [[key, desc]]); } },
+    sort(field, desc, active) { bond.sort(active ? field : null).desc(desc); },
+    clearSort: true,
   }, bond.bind());
   corner.add(all(bond, g(tb)));
   return tb;
@@ -1130,14 +1159,11 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
         }
         if (bond.sort) {
           if (dt === src) dt = dt.slice();
-          for (let sort of bond.sort) {
-            let [field, desc] = <[str, bool?]>arr(sort), _d = desc ? 1 : -1;
-            dt.sort((a, b) => {
-              let _a = a[field];
-              let _b = b[field];
-              return _a == _b ? 0 : (_b == null ? -1 : _a == null ? 1 : _b > _a ? 1 : -1) * _d;
-            });
-          }
+          let field = bond.sort, desc = bond.desc ? 1 : -1;
+          dt.sort((a, b) => {
+            let _a = a[field]; let _b = b[field];
+            return _a == _b ? 0 : (_b == null ? -1 : _a == null ? 1 : _b > _a ? 1 : -1) * desc;
+          });
         }
         let _ = l(dt);
         if (bond.limit) {
@@ -1202,11 +1228,16 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
 type Fetch = (method: Method, body: any, signal?: AbortSignal) => any;
-export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], id: keyof T = "id" as any) {
+interface FetchOpts<T extends AnyDic> {
+  /**@default "id" */
+  id?: keyof T;
+  headers: HeadersInit;
+}
+export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], { headers, id }: FetchOpts<T>) {
   if (isS(url)) {
     let _ = url;
     url = async (method, body, signal) => {
-      let r = await fetch(_, { method, body: json(body), signal });
+      let r = await fetch(_, { method, body: json(body), signal, headers });
       let dt = await r.json();
       if (r.ok)
         return dt;
@@ -1216,8 +1247,8 @@ export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], i
     }
   }
   let src: DataSource = {
-    fields, id,
-    get(bond, signal) {
+    fields, id: id || <any>"id",
+    get:(bond, signal) =>{
       return (url as Fetch)("GET", bond, signal);
     },
     async post(dt) {
