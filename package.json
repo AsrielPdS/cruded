@@ -18,5 +18,9 @@
     "galho",
     "ui"
   ],
-  "author": "Asriel Pd Santos"
+  "author": {
+    "name": "Asriel Pd Santos",
+    "email": "AsrielPdS@gmail.com",
+    "url": "https://AsrielPdS.github.io"
+  }
 }

@@ -218,6 +218,7 @@ export interface Column {
   compare?(a: any, b: any): number;
   fmt?: (v: any, p: FieldPlatform, src: Dic) => any;
 }
+export type SortFn = (column: PropertyKey, desc: bool, active: bool)=> any;
 interface iTable<T extends AnyDic> extends ICrud<T> {
   /**columns */
   cols?: L<Column>
@@ -232,7 +233,7 @@ interface iTable<T extends AnyDic> extends ICrud<T> {
 
   key?: PropertyKey;
   style?: RecordStyle;
-  sort(column: PropertyKey, desc: bool, active: bool): any;
+  sort?: SortFn;
   clearSort?: bool;
   corner?: any;
   p?: FieldPlatform;
@@ -569,6 +570,7 @@ export interface DataSource extends Cruded.DataSource {
   /**modal form */
   mdform?(fill?: Dic): Task<Dic | void>;
   view?(bond: Bond): Task<(r: Dic) => G>;
+  filter?(): any;
   /**single name */
   s?: str;
   /**plural name */
@@ -586,32 +588,19 @@ export function reload(src: DataSource) {
     return t1;
   }
 }
-
-export interface BondOptions {
-  fields?: PropertyKey[];
-  sort?: PropertyKey;
-  desc?: bool;
-  pag?: number;
-  limit?: number;
-  where?: Filter[];
-  query?: string;
-  queryBy?: Array<string>;
-}
-export type Filter = [field: PropertyKey, value: any, type?: str];
 export interface ISelect<T extends GT = "rows"> {
   tp?: T;
   fields?: (PropertyKey | [field: PropertyKey, exp: str])[];
-  /**return original value */
+  /** if true get original value(used for fill form), if false get view value */
   src?: bool;
-  /**if shoul get id @default true */
-  id?: bool;
   sort?: PropertyKey;
   desc?: bool
-  pag?: number;
-  limit?: number;
-  where?: Filter[];
+  pag?: int;
+  limit?: int;
   query?: string;
-  queryBy?: Array<PropertyKey>;
+  queryBy?: PropertyKey[];
+  /**filter id */
+  id?: Key;
 }
 export interface SelectResult {
   one: any;
@@ -625,6 +614,16 @@ export interface SelectResult {
 /**get type */
 export type GT = keyof SelectResult;
 type SelectRowsResult = [total: number, data: AnyDic[]]
+
+export interface BondOptions {
+  fields?: PropertyKey[];
+  sort?: PropertyKey;
+  desc?: bool;
+  pag?: int;
+  limit?: int;
+  query?: str;
+  queryBy?: str[];
+}
 export class Bond {
   #q: str;
   #pag: number;
@@ -640,7 +639,6 @@ export class Bond {
   readonly groupBy: L<str>;
   readonly queryBy: L<PropertyKey>;
   readonly fields: L<PropertyKey>;
-  w: Filter[];
   constructor(src: DataSource, opts: BondOptions | PropertyKey[] = {}) {
     isA(opts) && (opts = { fields: opts });
     this.src = src;
@@ -661,7 +659,6 @@ export class Bond {
       return f;
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
-    this.w = opts.where;
   }
   #s: PropertyKey;
   #d: bool;
@@ -726,34 +723,17 @@ export class Bond {
     this.#limit = value;
     this.update();
   }
-  ids() {
+  ids(): Task<Key[]> {
     let t = this.src;
     if (this.pags > 1) {
       let j = this.toJSON();
       return t.get({
         tp: "col",
         fields: [t.id],
-        where: j.where,
         query: j.query,
         queryBy: j.queryBy
-      }) as Task<number[]>;
-    }
-    else
-      return this.list.map(f => t.id || f.id);
-  }
-  rmvFilter(key: PropertyKey) {
-    let i = iByKey(this.w ||= [], key, 0);
-    if (i != -1) this.w.splice(i, 1);
-    return this;
-  }
-  where(key: PropertyKey, value: any, type?: str) {
-    let i = byKey(this.w ||= [], key, 0);
-    if (i) {
-      i[1] = value; i[2] = type;
-    } else this.w.push(i = [key, value, type]);
-    if (!i[2]) i.pop();
-    this.update(true);
-    return this;
+      });
+    } else return sub(this.list, t.id);
   }
   bind<T extends Dic>(list?: L<T> | IList<T>): L<T> {
     if (!this.list) {
@@ -812,15 +792,14 @@ export class Bond {
     return this;
   }
   toJSON(): ISelect<"full"> {
-    let { query: q, queryBy: b, fields: f, w, src, limit, pag: p } = this;
+    let { query: q, queryBy: b, fields: f, src, limit, pag: p } = this;
     return {
       tp: "full",
       fields: !l(f) || l(src.fields) == l(f) ? void 0 : f.map(f => {
         let exp = byKey(src.fields, f, "name").exp;
         return exp ? [f, exp] : f;
       }),//`as(${f.e},'${f.key}')` : .map(f => l(Object.keys(f)) > 1 ? f : f.key)
-      where: w, limit,
-      pag: p == 1 ? void 0 : p,
+      limit, pag: p == 1 ? void 0 : p,
       query: q || undefined,
       queryBy: q && l(b) ? b : undefined,
       sort: this.#s, desc: this.#d,
@@ -966,7 +945,7 @@ export async function mdPost(ent: DataSource, form?: FormBase) {
   return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
 export async function mdPut(src: DataSource, id: any, form?: FormBase) {
-  let dt = await src.get({ tp: "row", where: [[src.id, id]], src: true });
+  let dt = await src.get({ tp: "row", id, src: true });
   if (src.mdform) return src.mdform(dt);
 
   modal(
@@ -1150,14 +1129,17 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
             // }
           }
         }
-        if (bond.where?.length) {
-          dt = dt.filter(i => {
-            for (let [field, v] of bond.where)
-              if (i[field] != v)
-                return false;
-            return true;
-          });
+        if (bond.id) {
+          dt = [dt.find(i => i[id] == bond.id)];
         }
+        // if (bond.where?.length) {
+        //   dt = dt.filter(i => {
+        //     for (let [field, v] of bond.where)
+        //       if (i[field] != v)
+        //         return false;
+        //     return true;
+        //   });
+        // }
         if (bond.sort) {
           if (dt === src) dt = dt.slice();
           let field = bond.sort, desc = bond.desc ? 1 : -1;
@@ -1348,3 +1330,7 @@ export function fromIDB(builder: IDBBuilder, key: str, fields: Field[], id = "id
   };
 }
 //#endregion
+
+export function toCSV() {
+
+}
