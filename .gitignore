@@ -2,3 +2,9 @@ package-lock.json
 node_modules
 *.js
 *.d.ts
+
+cruded.js
+config.js
+
+cruded.d.ts
+config.d.ts

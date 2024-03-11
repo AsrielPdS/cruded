@@ -45,14 +45,29 @@ export function setPT() {
     save: "Salvar",
     showAll: "Mostrar todos",
     true: "Verdade",
-
   });
 }
 export function setFR() {
   assign<Partial<Words>>(w, {
     //galhui
+    cancel: "Cancelar",
+    confirm: "Confirmar",
+    required: "Obrigatorio",
+    search: "Pesquisar",
 
     //cruded
+    add: "Adicionar",
+    confirmRemove: "{src} {item} Será removido, deseja continuar?",
+    confirmRemoveMany: "Será removido {count} {src}, deseja continuar?",
+    duplicate: "Duplicar",
+    edit: "Editar",
+    editItemTitle: "Modificar {src} {item}",
+    false: "Falso",
+    newItemTitle: "Cadastrar {src}",
+    remove: "Remover",
+    save: "Salvar",
+    showAll: "Mostrar todos",
+    true: "Verdade",
 
   });
 }
@@ -64,6 +79,14 @@ export function setES() {
 
   });
 }
+// export function setCustomLocale(){
+//   assign<Partial<Words>>(w, {
+//     //galhui
+
+//     //cruded
+
+//   });
+// }
 
 export function setIcons() {
   assign(icons, {

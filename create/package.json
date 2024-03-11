@@ -1,0 +1,35 @@
+{
+    "name": "create-cruded",
+    "version": "0.0.1",
+    "description": "create crud project",
+    "dependencies": {
+        "galho": "",
+        "galhui": ""
+    },
+    "bin": "index.js",
+    "type": "module",
+    "homepage": "https://AsrielPdS.github.io/?_=cruded",
+    "repository": {
+        "type": "git",
+        "directory": "create",
+        "url": "https://github.com/AsrielPdS/cruded.git"
+    },
+    "keywords": [
+        "crud",
+        "web",
+        "form",
+        "galho",
+        "ui"
+    ],
+    "devDependencies": {
+      "@types/minimist": "",
+      "@types/prompts": "",
+      "kolorist":""
+      
+    },
+    "author": {
+        "name": "Asriel Pd Santos",
+        "email": "AsrielPdS@gmail.com",
+        "url": "https://AsrielPdS.github.io"
+    }
+}

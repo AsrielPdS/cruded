@@ -2,8 +2,9 @@ import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
 import { AnyDic, Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
-import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TimeIn, iFormBase, mdform } from "galhui/form.js";
-import { Button, up } from "galhui/util.js";
+import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TextInValidation, TimeIn, iFormBase, mdform } from "galhui/form.js";
+import { up } from "galhui/form.js";
+import { HTOl, HTUl } from "galho/elements.js"
 
 declare global {
   interface Settings {
@@ -34,7 +35,7 @@ declare global {
     interface Field {
 
     }
-
+    interface OutputOptions { }
   }
 }
 export type TAlign = "center" | "justify" | "left" | "right" | "start" | "end";
@@ -49,20 +50,24 @@ interface iPagging {
 }
 class Pagging extends Component<iPagging>{
   view() {
-    let
-      i = this.p,
-      pags: number,
-      count = g('span'),
-      total: G;
+    let i = this.p, pags: number;
+    let count = g('span');
+    let total = g("span", "hd");
+    let prev = mbitem(icons.prev, null, () => this.set('pag', i.pag - 1));
+    let next = mbitem(icons.next, null, () => this.set('pag', i.pag + 1))
+    let first = i.extreme && mbitem(icons.first, null, () => this.set('pag', 0));
+    let last = i.extreme && mbitem(icons.last, count, () => this.set('pag', pags - 1));
+    let current = g("span", "hd").css({ textAlign: "center" });
+
     if (i.setlimit) {
       var limits = new SelectIn<Pair<str, int>, 0>({
         value: i.limit,
         fluid: true,
         clear: false
       }, [
+        Math.round(i.min / 2),
         i.min,
         i.min * 5,
-        i.min * 10,
         i.min * 10,
         i.min * 20,
         [0, w.showAll]
@@ -70,26 +75,21 @@ class Pagging extends Component<iPagging>{
     }
 
     return this.bind(div("_ bar pag", [
-      i.extreme && mbitem(icons.first, null, () => this.set('pag', 1)),
-      mbitem(icons.prev, null, () => this.set('pag', i.pag - 1)),
-      g("span", "hd").css({ textAlign: "center" }),
-      mbitem(icons.next, null, () => this.set('pag', i.pag + 1)),
-      i.extreme && mbitem(icons.last, count, () => this.set('pag', pags)),
+      first, prev, current, next, last,
       limits && [
         g("hr"),
         g(limits.onset("value", ({ value }) => { this.set('limit', value); }), "i")
       ],
-      g("hr"), total = g("span", "hd")
+      g("hr"), total
     ]), (s) => {
-      total.set(`${Math.min(i.total - i.limit * (i.pag - 1), i.limit || i.total) || 0} / ${i.total || 0}`)
+      total.set([Math.min(i.total - i.limit * i.pag, i.limit || i.total), ' / ', i.total])
       pags = i.limit ? Math.ceil((i.total || 0) / i.limit) : 1;
-      s.c(C.off, !!(pags < 2 && i.hideOnSingle));
+      s.c("off", !!(pags < 2 && i.hideOnSingle));
 
-      let t = i.extreme ? 0 : 1
-      s.child(2 - t).set(i.pag);
+      current.set(i.pag + 1);
 
-      s.childs<Button>(0, 2 - t).p('disabled', i.pag == 1);
-      s.childs<Button>(3 - t, 5 - t * 2).p('disabled', i.pag == pags);
+      m(prev, first).p('disabled', !i.pag);
+      m(next, last).p('disabled', i.pag == pags);
 
       count.set(pags);
     });
@@ -100,7 +100,7 @@ class Pagging extends Component<iPagging>{
     return l ? Math.ceil((t || 0) / l) : 1
   }
 }
-export function pagging(bond: Bond, setlimit?: bool, extreme = setlimit) {
+export function pagging(bond: Bond<any>, setlimit?: bool, extreme = setlimit) {
   let p = new Pagging({
     pag: bond.pag,
     min: bond.limit,
@@ -109,11 +109,8 @@ export function pagging(bond: Bond, setlimit?: bool, extreme = setlimit) {
     extreme,
     setlimit
   }).on((e) => {
-    if ('pag' in e) {
+    if ('pag' in e)
       bond.pag = e.pag;
-      if (!('limit' in e))
-        bond.update();
-    }
     if ('limit' in e)
       bond.limit = e.limit;
   });
@@ -178,22 +175,13 @@ export class TForm extends FormBase<iTForm> {
 type DataType = 's' | 'd' | 'b' | 'n';
 
 //todo: transferir algumas das propiedadas para o $
-export interface FieldPlatform {
+export interface OutputOptions extends Cruded.OutputOptions {
   null?: (() => G) | str;
-  invalidIcon?(): G<any> | str;
-  wrap?(v: any): G;
-  /**format for number */
-  numberFmt?: str;
   /**format for checkbox */
-  checkboxFmt?: str;
-  dateFmt?: str;
-  timeFmt?: str;
-  html?: bool;
-  interactive?: bool;
-  format?: bool;
+  cbfmt?: str;
 }
 type CrudMenu<T> = (items: T[]) => void | MenuItems;
-interface ICrud<T> {
+export interface ICrud<T> {
   /**field used as primary key */
   key?: keyof T;
   /**
@@ -206,7 +194,8 @@ interface ICrud<T> {
   single?: boolean;
 }
 type RecordStyle = (row: G, value: Dic, index: int) => G | void;
-export interface Column {
+
+export interface Column<T extends AnyDic = AnyDic> {
   key: PropertyKey;
   size?: int;
   fixed?: bool;
@@ -216,18 +205,18 @@ export interface Column {
   desc?: bool;
   input?(): One;
   compare?(a: any, b: any): number;
-  fmt?: (v: any, p: FieldPlatform, src: Dic) => any;
+  fmt?(this: this, v: any, p: OutputOptions, src: T): any;
 }
-export type SortFn = (column: PropertyKey, desc: bool, active: bool)=> any;
+export type SortFn = (column: PropertyKey, desc: bool, active: bool) => any;
 interface iTable<T extends AnyDic> extends ICrud<T> {
   /**columns */
-  cols?: L<Column>
-  allColumns?: Column[];
-  reqColumns?: PropertyKey[];
+  cols?: L<Column<T>>;
+  allCols?: Column<T>[];
+  reqCols?: PropertyKey[];
   enum?: boolean;
   editable?: bool;
   resize?: boolean;
-  head?(column: Column);
+  head?(column: Column<T>);
 
   empty?: () => void;
 
@@ -236,7 +225,7 @@ interface iTable<T extends AnyDic> extends ICrud<T> {
   sort?: SortFn;
   clearSort?: bool;
   corner?: any;
-  p?: FieldPlatform;
+  p?: OutputOptions;
   fill?: bool;
   foot?: ((tb: Table<T>) => One)[];
 }
@@ -248,25 +237,25 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
   data: L<T>;
   form?: TForm;
   // foot: Foot[];
-  constructor(i: iTable<T>, data?: Alias<T>) {
-    // i.data = data as L;
-    super(i);
+  constructor(p: iTable<T>, data?: Alias<T>) {
+    // p.data = data as L;
+    super(p);
     this.data = extend(data, {
-      g: i.single ? null : ["on"],
-      key: i.key,
+      g: p.single ? null : ["on"],
+      key: p.key,
       clear: true
     });
     // this.foot = foot && extend<T>(foot, {
-    //   key: i.key,
+    //   key: p.key,
     //   clear: true
     // });
-
-    i.head ||= c => def(def(c.text, w[c.key]), up(c.key as str));
+    p.cols.on(() => this.set(["cols"]));
+    p.head ||= c => c.text ?? up(c.key as str);
   }
   /**column css */
   ccss(e: G, i: int, span?: int): G
-  ccss(e: G, column: Column): G
-  ccss(e: G, c: int | Column, span = 1) {
+  ccss(e: G, column: Column<T>): G
+  ccss(e: G, c: int | Column<T>, span = 1) {
     let sz = 0;
     if (isN(c)) {
       let cs = this.cols, i = c, j = 0
@@ -280,31 +269,27 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
     });
   }
   view() {
-    let
-      i = this.p,
-      cols = i.cols,
-      all = i.allColumns,
-      req = i.reqColumns,
-      data = this.data,
-      hdOptsLeave: any,
-      hdOpts = all && idropdown(null, all.map(c => {
-        return menucb(cols.includes(c), def(def(c.text, w[c.key]), up(c.key as str)), checked => {
-          if (checked) {
-            cols.push(c);
-            cols.sort((a, b) => all.indexOf(a) - all.indexOf(b));
-          } else cols.remove(c);
-        }, c.key as str, req && (req.includes(c.key)))
-      })).on("click", e => clearEvent(e));
-    let hd = cols.bind(div("hd _ tr", wrap(i.corner, C.side)), {
-      insert: (c, j, p) => {
-        let s = this.ccss(wrap(i.head(c), "i"), c).uncss("textAlign");
-        if (i.resize)
+    let p = this.p, cols = p.cols;
+    let all = p.allCols, req = p.reqCols;
+    let data = this.data, hdOptsLeave: any;
+    let hdOpts = all && idropdown(null, all.map(c => {
+      return menucb(cols.includes(c), c.text ?? up(c.key as str), checked => {
+        if (checked) {
+          cols.push(c);
+          cols.sort((a, b) => all.indexOf(a) - all.indexOf(b));
+        } else cols.remove(c);
+      }, c.key as str, req && (req.includes(c.key)))
+    }), "vs", false).on("click", e => clearEvent(e));
+    let hd = cols.bind(div("hd _ tr", wrap(p.corner, C.side)), {
+      insert: (c, i, parent) => {
+        let s = this.ccss(wrap(p.head(c), "i"), c).uncss("textAlign");
+        if (p.resize)
           div(C.separator).addTo(s).on('mousedown', e => {
             clearEvent(e);
             let newJ = cols.indexOf(c) + 1;
-            if (!i.fill || newJ < l(cols)) {
+            if (!p.fill || newJ < l(cols)) {
               let rows = d.childs().child(newJ);
-              let next = i.fill && rows.next();
+              let next = p.fill && rows.next();
               let s2 = next?.e?.(0), r = s2?.rect?.right;
               body().css({ cursor: 'col-resize', userSelect: "none" });
               function move(e: MouseEvent) {
@@ -318,11 +303,12 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
               doc().on('mousemove', move).one('mouseup', () => {
                 doc().off('mousemove', move);
                 body().uncss("cursor", "userSelect");
+                this.set(["cols"]);
               });
             }
           });
 
-        i.sort && s.on("click", () => {
+        p.sort && s.on("click", () => {
           if (cols.tag("sort") == c)
             if (c.desc) {
               c.desc = false;
@@ -338,28 +324,28 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
         });
         hdOpts && s.on({
           mouseenter() { clearTimeout(hdOptsLeave); s.add(hdOpts) },
-          mouseleave() { hdOptsLeave = setTimeout(() => hdOpts.remove().child(".menu")?.remove(), 300); }
+          mouseleave() { hdOptsLeave = setTimeout(() => hdOpts.remove().child(".menu")?.remove(), 400); }
         });
-        p.place(j + 1, s);
+        parent.place(i + 1, s);
       },
-      tag(active, j, p, tag, v) {
-        let s = p.child(j + 1);
+      tag(active, i, parent, tag, v) {
+        let s = parent.child(i + 1);
         switch (tag) {
           case "sort":
             s.child(".sort")?.remove();
             if (active)
               s.add(icon(icons[v.desc ? 'desc' : 'asc']).c("sort"));
-            i.sort(v.key, v.desc, active);
+            p.sort(v.key, v.desc, active);
             break;
           default:
             s.c(tag, active);
         }
       },
-      remove(_, _i, p) { p.unplace(_i + 1); },
-      clear(p: G) { p.childs(1).remove(); }
+      remove(_, i, p) { p.unplace(i + 1); },
+      clear(p) { p.childs(1).remove(); }
     });
     let foot = (v: (tb: Table<T>) => One) => g(v(this), "_ ft tr");
-    let ft = i.foot && m(...i.foot.map(foot));
+    let ft = p.foot && m(...p.foot.map(foot));
     let d: G = div("_ tb", [hd, ft])
       .on("click", e => e.target == e.currentTarget && range.clear(data as L, "on"))
       .p('tabIndex', 0)
@@ -369,20 +355,20 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
         //     if (i.editable && !this.editing)
         //       this.edit();
         // }
-        kbHandler(data, e, i) && clearEvent(e);
+        kbHandler(data, e, p) && clearEvent(e);
       });
 
     let content = (v: T) => [
       div(C.side),
-      cols.map(c => this.ccss(wrap(c.fmt ? c.fmt(v[c.key], i.p, v) : v[c.key]), c)),
+      cols.map(c => this.ccss(wrap(c.fmt ? c.fmt(v[c.key], p.p, v,) : v[c.key]), c)),
       // i.options && div(C.options, i.options.map(opt => opt(s, _i)))
     ];
     data.bind(d, {
-      insert: (v, j) => {
+      insert: (v, i) => {
         let t2 = div("_ tr i", content(v));
-        d.place(j + 1, crudHandler(i.style?.(t2, v, j) || t2, v, data, i));
+        d.place(i + 1, crudHandler(p.style?.(t2, v, i) || t2, v, data, p));
       },
-      reload(v, j) { d.child(j + 1).set(content(v)) },
+      reload(v, i) { d.child(i + 1).set(content(v)) },
       tag: (active, i, p) => {
         let s = p.child(i + 1).c(C.current, active).e;
         active && s.scrollIntoView({
@@ -396,9 +382,9 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
     });
     cols.on(() => {
       this.data.reloadAll();
-      ft?.eachS((f, j) => f.replace(foot(i.foot[j])));
+      ft?.eachS((f, j) => f.replace(foot(p.foot[j])));
     });
-    i.resize && d.c(C.bordered);
+    p.resize && d.c(C.bordered);
     return d;
   }
   fillArea(sideSize = 2 * $.rem) {
@@ -411,38 +397,47 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
   }
 }
 
-export interface ilist<T> extends ICrud<any> {
+export interface ilist<T> extends ICrud<T> {
   data?: L<T>;
   item(value: T): any;
   single?: boolean;
-  enum?: bool;
+
   /**keydown 
    * @default true */
   kd?: bool;
-  tag?: keyof HTMLElementTagNameMap;
 }
-export function list<T>(data: L<T> | T[], i: ilist<T>) {
-  let
-    dt = extend(data, {
-      g: i.single ? null : ["on"],
-      clear: true, key: i.key as any
-    }), e = t(i.enum),
-    r = dt.bind(g(i.tag || (e ? "ol" : "ul"), "_ list"), {
-      insert: v => crudHandler(wrap(i.item(v), "i").badd(e && div(C.side)), v, dt, i),
-      reload(v, j, p) { p.child(j).set(Array.from(wrap(i.item(v), "i").badd(div(C.side)).e.childNodes)) },
-      tag(active, i, p, tag) {
-        let s = p.child(i);//.emit(new CustomEvent("current", { detail: active }));
-        if (tag == "on") {
-          s.c(C.current, active);
-          active && s.e.scrollIntoView({
+export function list<T, Tag extends keyof HTMLElementTagNameMap>(data: L<T> | T[], p: ilist<T> & { tag: Tag, enum?: bool; }): G<HTMLElementTagNameMap[Tag]>
+export function list<T>(data: L<T> | T[], p: ilist<T> & { enum?: true }): G<HTOl>
+export function list<T>(data: L<T> | T[], p: ilist<T> & { enum: false; }): G<HTUl>
+export function list<T>(data: L<T> | T[], p: ilist<T> & { tag?: any, enum?: bool }) {
+  let dt = extend(data, {
+    g: p.single ? null : ["on"],
+    clear: true, key: p.key as any
+  });
+  let e = t(p.enum);
+  let r = dt.bind(g(p.tag || (e ? "ol" : "ul"), "_ list"), {
+    insert: v => crudHandler(wrap(p.item(v), "i").badd(e && div(C.side)), v, dt, p),
+    reload(v, j, container) {
+      container.child(j).set(Array.from(wrap(p.item(v), "i").badd(div(C.side)).e.childNodes))
+    },
+    tag(active, i, container, tag, val) {
+      let s = container.child(i
+      );//.emit(new CustomEvent("current", { detail: active }));
+      if (tag == "on") {
+        s.c(C.current, active);
+        if (active)
+          s.e.scrollIntoView({
             block: "nearest", inline: "nearest"
-          })
-        }
-        p.child(i).c(tag, active);
-      },
-      groups(v, i, p, g) { p.child(i).c(g, v) }
-    }).on("click", e => e.target == e.currentTarget && range.clear(data as L, "on"));
-  return t(i.kd) ? r.p("tabIndex", 0).on("keydown", e => kbHandler(data as L<T>, e, i) && clearEvent(e)) : r;
+          });
+        p.focus?.(val, active);
+      }
+      container.child(i).c(tag, active);
+    },
+    groups(active, i, container, g) {
+      container.child(i).c(g, active);
+    }
+  }).on("click", e => e.target == e.currentTarget && range.clear(data as L, "on"));
+  return t(p.kd) ? r.p("tabIndex", 0).on("keydown", e => kbHandler(data as L<T>, e, p) && clearEvent(e)) : r;
 }
 
 function defineSize(items: { size?: int }[], max = 100) {
@@ -470,12 +465,12 @@ function crudHandler<T>(e: G, v: T, dt: L<T>, i: ICrud<T>) {
     })
   })
 }
-const kbHTp = <T>(dt: L<T>, dist: int, { ctrlKey: ctrl, shiftKey: shift }: KeyboardEvent) =>
+export const kbHTp = <T>(dt: L<T>, dist: int, { ctrlKey: ctrl, shiftKey: shift }: KeyboardEvent) =>
   shift ? range.move(dt, "on", dist, range.tp(ctrl, false)) :
     ctrl ? range.movePivot(dt, "on", dist) :
       range.move(dt, "on", dist, "set");
 /**@returns true if event was already handled */
-function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) {
+export function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) {
   switch (e.key) {
     case "Delete":
       let t0 = range.list(dt, "on");
@@ -521,7 +516,7 @@ function kbHandler<T>(dt: L<T>, e: KeyboardEvent, i: ICrud<T>, noArrows?: bool) 
 }
 
 //#region entity
-export type OutputFN<F> = (this: F, v: any, p?: FieldPlatform, s?: Dic) => any;
+export type OutputFN<F> = (this: F, v: any, p?: OutputOptions, s?: Dic) => any;
 export interface Field extends Cruded.Field {
   name: PropertyKey;
   text?: str;
@@ -550,13 +545,13 @@ export interface Field extends Cruded.Field {
 
 }
 export type Put = (Dic & { id: Key });
-export interface DataSource extends Cruded.DataSource {
+export interface DataSource<T extends AnyDic = AnyDic> extends Cruded.DataSource {
   /**id field */
   id?: PropertyKey;
   /**main field */
   main?: PropertyKey;
   fields?: Field[];
-  get?<T extends keyof SelectResult = "rows">(bond: ISelect<T>, cancel?: AbortSignal): Promise<SelectResult[T]>;
+  get?<K extends keyof SelectResult = "rows">(bond: ISelect<K>, cancel?: AbortSignal): Promise<SelectResult<T>[K]>;
   /**insert data to source
    * @returns an object foreach inserted line with idcolumn and other auto generated data
    */
@@ -564,11 +559,11 @@ export interface DataSource extends Cruded.DataSource {
   put?(dt: Put[]): Task<any>;
   del?(ids: Key[]): Task<any[] | void>;
   /**bonds listeners */
-  bonds?: Array<WeakRef<Bond>>;
+  bonds?: Array<WeakRef<Bond<T>>>;
   style?: RecordStyle;
-  form?(e: DataSource, edit?: bool): Task<FormBase>;
+  form?(e: DataSource<T>, edit?: bool): Task<FormBase>;
   /**modal form */
-  mdform?(fill?: Dic): Task<Dic | void>;
+  mdform?(fill?: T): Task<T | void>;
   view?(bond: Bond): Task<(r: Dic) => G>;
   filter?(): any;
   /**single name */
@@ -577,9 +572,9 @@ export interface DataSource extends Cruded.DataSource {
   p?: str;
 }
 
-export function reload(src: DataSource) {
+export function reload<T extends AnyDic>(src: DataSource<T>) {
   if (src.bonds) {
-    let t1: Promise<SelectRowsResult>[] = [];
+    let t1: Promise<SelectRowsResult<T>>[] = [];
     for (let i = 0; i < src.bonds.length; i++) {
       let b = src.bonds[i].deref();
       if (b) t1[i] = b.update();
@@ -588,13 +583,13 @@ export function reload(src: DataSource) {
     return t1;
   }
 }
+export type Sort = [field: PropertyKey, desc?: bool];
 export interface ISelect<T extends GT = "rows"> {
   tp?: T;
   fields?: (PropertyKey | [field: PropertyKey, exp: str])[];
   /** if true get original value(used for fill form), if false get view value */
   src?: bool;
-  sort?: PropertyKey;
-  desc?: bool
+  sort?: Sort[];
   pag?: int;
   limit?: int;
   query?: string;
@@ -602,55 +597,56 @@ export interface ISelect<T extends GT = "rows"> {
   /**filter id */
   id?: Key;
 }
-export interface SelectResult {
+export interface SelectResult<T extends AnyDic = AnyDic> {
   one: any;
-  row: AnyDic;
+  row: T;
   arr: any[];
   grid: any[][];
   col: any[];
-  rows: AnyDic[];
-  full: SelectRowsResult;
+  rows: T[];
+  full: SelectRowsResult<T>;
 }
 /**get type */
-export type GT = keyof SelectResult;
-type SelectRowsResult = [total: number, data: AnyDic[]]
+export type GT = keyof SelectResult<any>;
+type SelectRowsResult<T extends AnyDic> = [total: number, data: T[]]
 
 export interface BondOptions {
   fields?: PropertyKey[];
-  sort?: PropertyKey;
-  desc?: bool;
+  sort?: (Sort | PropertyKey)[] | str;
   pag?: int;
   limit?: int;
   query?: str;
-  queryBy?: str[];
+  queryBy?: PropertyKey[];
 }
-export class Bond {
+export class Bond<T extends AnyDic = AnyDic> {
   #q: str;
   #pag: number;
   #limit: number;
-  list: L<AnyDic>;
+  list: L<T>;
   readOnly: bool;
   length: number;
-  task?: Promise<SelectRowsResult>;
-  readonly fromStorage: (this: this, value: Dic) => Dic;
-  readonly toStorage: (this: this, value: Dic) => Dic;
-  readonly src: DataSource;
-  all: Dic[];
+  task?: Promise<SelectRowsResult<T>>;
+  // readonly fromStorage: (this: this, value: Dic) => Dic;
+  // readonly toStorage: (this: this, value: Dic) => Dic;
+  readonly src: DataSource<T>;
+  all: T[];
   readonly groupBy: L<str>;
   readonly queryBy: L<PropertyKey>;
   readonly fields: L<PropertyKey>;
-  constructor(src: DataSource, opts: BondOptions | PropertyKey[] = {}) {
+  readonly sort: L<Sort, PropertyKey>;
+  constructor(src: DataSource<T>, opts: BondOptions | PropertyKey[] = {}) {
     isA(opts) && (opts = { fields: opts });
     this.src = src;
     this.#limit = def(opts.limit, $.defLimit);
-    this.#pag = opts.pag || 1;
+    this.#pag = opts.pag || 0;
     let onupd = () => {
-      this.#pag = 1;
+      this.#pag = 0;
       this.update(true);
     };
-    this.query = opts.query;
-    this.#s = opts.sort;
-    this.#d = opts.desc;
+    this.query(opts.query);
+    this.sort = orray<Sort, PropertyKey>(isS(opts.sort) ? [[opts.sort]] : opts.sort, v => isO(v) ? v : [v]).on(onupd);
+    // this.#s = opts.sort;
+    // this.#d = opts.desc;
 
     this.fields = orray(opts.fields || filter(src.fields.map(f => t(f.get) && f.name)), f => {
       // if (!byKey(e.fields, (f = (isS(f) ? { key: f } : f)).key, "name"))
@@ -660,58 +656,60 @@ export class Bond {
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
   }
-  #s: PropertyKey;
-  #d: bool;
-
-  sort(): PropertyKey;
-  sort(v: PropertyKey): this
-  sort(v?: PropertyKey) {
-    if (isU(v))
-      return this.#s;
-    else {
-      if (v != this.#s) {
-        if (v == null)
-          this.#d = void 0;
-        this.#s = v;
-        this.update(true);
-      }
-      return this;
-    }
+  sortBy(field: PropertyKey, desc?: bool) {
+    this.sort.set(field && [[field, desc]]);
   }
-  desc(): bool;
-  desc(v: bool): this
-  desc(v?: bool) {
-    if (isU(v))
-      return this.#d;
-    else {
-      if (v != this.#d) {
-        this.#d = v;
-        this.update(true);
-      }
-      return this;
-    }
-  }
+  // sort(): PropertyKey;
+  // sort(v: PropertyKey): this
+  // sort(v?: PropertyKey) {
+  //   if (isU(v))
+  //     return this.#s;
+  //   else {
+  //     if (v != this.#s) {
+  //       if (v == null)
+  //         this.#d = void 0;
+  //       this.#s = v;
+  //       this.update(true);
+  //     }
+  //     return this;
+  //   }
+  // }
+  // desc(): bool;
+  // desc(v: bool): this
+  // desc(v?: bool) {
+  //   if (isU(v))
+  //     return this.#d;
+  //   else {
+  //     if (v != this.#d) {
+  //       this.#d = v;
+  //       this.update(true);
+  //     }
+  //     return this;
+  //   }
+  // }
   get pags() {
     return this.#limit ? Math.ceil(this.length / this.#limit) : 1;
   }
-  get query() { return this.#q; }
-  set query(value) {
+  query(): str | undefined;
+  query(value: str): this;
+  query(value?: str) {
+    if (isU(value)) return this.#q;
     if (value != this.#q) {
-      this.#pag = 1;
+      this.#pag = 0;
       this.#q = value;
-      this.update(true);
+      return this.update(true);
     }
   }
   get pag() { return this.#pag; }
   set pag(value) {
-    if (value < 1)
-      value = 1;
+    if (value < 0)
+      value = 0;
     else if (value > this.pags)
       value = this.pags;
     if (this.#pag == value)
       return;
     this.#pag = value;
-    this.update();
+    this.update(true);
   }
   get limit() { return this.#limit; }
   set limit(value) {
@@ -719,9 +717,9 @@ export class Bond {
       return;
     this.#pag = value ?
       Math.ceil(this.#limit * this.#pag / value) :
-      1;
+      0;
     this.#limit = value;
-    this.update();
+    this.update(true);
   }
   ids(): Task<Key[]> {
     let t = this.src;
@@ -735,25 +733,25 @@ export class Bond {
       });
     } else return sub(this.list, t.id);
   }
-  bind<T extends Dic>(list?: L<T> | IList<T>): L<T> {
+  bind(list?: L<T> | IList<T>): L<T> {
     if (!this.list) {
       let src = this.src;
       (this.list = isA(list) ? list : orray<T>(list)).key = src.id;
       (src.bonds ||= []).push(new WeakRef(this));
-      this.update();
+      this.update(true);
     }
     return this.list as L<T>;
   }
-  getAll(): Promise<SelectResult["rows"]>;
-  getAll<T extends keyof SelectResult>(tp: T): Promise<SelectResult[T]>;
-  getAll(tp = "rows") {
-    return this.src.get(assign<ISelect<any>>(this.toJSON(), {
-      tp, limit: void 0, pag: void 0
-    }));
-  }
+  // getAll(): Promise<SelectResult<T>["rows"]>;
+  // getAll<K extends keyof SelectResult>(tp: K): Promise<SelectResult<T>[K]>;
+  // getAll(tp = "rows") {
+  //   return this.src.get(assign<ISelect<any>>(this.toJSON(), {
+  //     tp, limit: void 0, pag: void 0
+  //   }));
+  // }
   #ac?: AbortController;
   #_: any;
-  update(wait?: false): Promise<SelectRowsResult>;
+  update(wait?: false): Promise<SelectRowsResult<T>>;
   update(wait: true): this;
   update(wait?: bool) {
     let fn = async () => {
@@ -786,23 +784,24 @@ export class Bond {
     this.task = null;
     return (wait ? (this.#_ = setTimeout(fn), this) : fn());
   }
-  #on: Array<(data: SelectRowsResult) => void>;
-  on(handler: (data: SelectRowsResult) => void) {
+  #on: Array<(data: SelectRowsResult<T>) => void>;
+  on(handler: (data: SelectRowsResult<T>) => void) {
     (this.#on ||= []).push(handler);
     return this;
   }
-  toJSON(): ISelect<"full"> {
-    let { query: q, queryBy: b, fields: f, src, limit, pag: p } = this;
+  toJSON<T extends ISelect<any>>(extra?: Partial<T>): ISelect<"full"> & Partial<T> {
+    let { queryBy: qb, fields: f, src, sort: s, limit, pag: p } = this;
     return {
-      tp: "full",
+      tp: "full" as any,
       fields: !l(f) || l(src.fields) == l(f) ? void 0 : f.map(f => {
         let exp = byKey(src.fields, f, "name").exp;
         return exp ? [f, exp] : f;
       }),//`as(${f.e},'${f.key}')` : .map(f => l(Object.keys(f)) > 1 ? f : f.key)
-      limit, pag: p == 1 ? void 0 : p,
-      query: q || undefined,
-      queryBy: q && l(b) ? b : undefined,
-      sort: this.#s, desc: this.#d,
+      limit, pag: p || void 0,
+      query: this.#q || undefined,
+      queryBy: this.#q && l(qb) ? qb : undefined,
+      sort: l(s) ? s : void 0,
+      ...extra
       // total: true
     };
   }
@@ -815,25 +814,25 @@ export class Bond {
 //     initField(f);
 //   return r as Field[];
 // }
-
-export const search = (bond: Bond) => g("label", "_ in", [
+export const isTouch = () => navigator.maxTouchPoints > 0;
+export const search = (bond: Bond<any>, placeholder = w.search + "...") => g("label", "_ in", [
   delay(g('input', {
     type: 'search',
     name: `${bond.src}_search`,
-    value: bond.query || '',
-    placeholder: w.search + "...",
-  }), 'input', 500, function () { bond.query = this.value; }),
+    value: bond.query() || '',
+    placeholder,
+  }), 'input', 500, function () { bond.query(this.value); }),
   // icon(icons.search)
   ibt(icons.search, null, () => bond.update())
 ]);
-export function searchBy({ queryBy: q, src }: Bond) {
+export function searchBy({ queryBy: q, src }: Bond<any>) {
   let list = src.fields.filter(f => f.query);
   if (!list.length) return null;
   // let all: S<HTMLInputElement> = g("input", { type: "checkbox" }).on("input", () => );
   let mn = menu([
     menucb(l(list) == l(q) ? true : !l(q) ? false : null, w.all, v => q.set(v && list.map(f => f.name)), "all"),
     menusep(),
-    ...list.map(f => menucb(q.includes(f.name), def(f.text, up(f.name as str)),
+    ...list.map(f => menucb(q.includes(f.name), f.text ?? up(f.name as str),
       ch => ch ? q.push(f.name) : q.remove(f.name), f.name as str))
   ]);
   q.on(() => {
@@ -844,19 +843,19 @@ export function searchBy({ queryBy: q, src }: Bond) {
   return idropdown(null, () => mn);
 }
 
-export type ECrudMenu<T = any> = (items: Dic[], bond: Bond, container: T) => void | MenuItems;
-export interface itable {
+export type ECrudMenu<T extends AnyDic, C = any> = (items: T[], bond: Bond<T>, container: C) => void | MenuItems;
+export interface itable<T extends AnyDic> {
   add?(): any;
-  menu?: ECrudMenu<Table>;
+  menu?: ECrudMenu<T, Table<T>>;
   single?: boolean;
   // options?: Option<Dic>[];
-  p?: FieldPlatform;
+  p?: OutputOptions;
   style?: RecordStyle;
   fill?: bool;
   req?: str[];
   // fields?: str[];
 }
-export function all(bond: Bond, container: G) {
+export function all<T extends AnyDic>(bond: Bond<T>, container: G) {
   let
     list = bond.bind(),
     t = g("input", {
@@ -870,7 +869,8 @@ export function all(bond: Bond, container: G) {
         });
         bond.all = void 0;
         busy(g(container), async () => {
-          let t2 = await bond.getAll();
+          let t2 = await bond.src.get(bond.toJSON({ limit: void 0, pag: void 0, tp: "rows" }));
+          // bond.getAll();
           if (isU(bond.all))
             bond.all = t2;
         }, null, 250);
@@ -886,20 +886,10 @@ export function all(bond: Bond, container: G) {
   });
   return t;
 }
-/**entity table @deprecated usar o $?*/
-export const defRenderer: FieldPlatform = {
-  null: () => div(0, icon(icons.null)),
-  invalidIcon: () => icon('image-broken'),
-  checkboxFmt: "icon",
-  wrap,
-  html: true,
-  interactive: true,
-  format: true
-}
-export function etable(bond: Bond, i: itable = {}) {
+export function etable<T extends AnyDic>(bond: Bond<T>, i: itable<T> = {}) {
   let src = bond.src;
   let f = src.fields.filter(f => t(f.get));
-  let allColumns = f.map((f: Field): Column => ({
+  let allCols = f.map((f: Field): Column<T> => ({
     // opts: f,
     dt: f.dt,
     key: f.name,
@@ -910,8 +900,7 @@ export function etable(bond: Bond, i: itable = {}) {
   }));
 
   l(bond.fields) || bond.fields.set(sub(f, "name"));
-  let cols = orray<Column>(
-    bond.fields.map(f => byKey(allColumns, f, "key")));
+  let cols = orray<Column<T>>(bond.fields.map(f => byKey(allCols, f, "key")), { key: "key" });
   copy(cols, bond.fields, false, c => c.key);
 
   // // /**can select data */
@@ -920,31 +909,29 @@ export function etable(bond: Bond, i: itable = {}) {
 
   // .filter(k=>!i.meta?.includes(k))
   let corner = g("span");
-  let tb: Table = new Table<AnyDic>({
-    cols,
-    fill: i.fill,
-    resize: true,
-    single: i.single,
+  let tb: Table<T> = new Table<T>({
+    cols, resize: true,
+    fill: i.fill, single: i.single,
     // options: i.options,
     style: i.style || src.style,
-    p: i.p || defRenderer, corner,
+    p: i.p || {} as OutputOptions, corner,
     menu: i.menu && (d => i.menu(bond.all || d, bond, tb)),
     open: v => mdPut(src, v?.id),
     remove: v => tryRemove(src, sub(v, src.id || "id")),
-    allColumns, reqColumns: i.req || [src.main], key: src.id || "id",
-    sort(field, desc, active) { bond.sort(active ? field : null).desc(desc); },
+    allCols, reqCols: i.req || [src.main], key: src.id || "id",
+    sort(field, desc, active) { bond.sortBy(active ? field : null, desc); },
     clearSort: true,
   }, bond.bind());
   corner.add(all(bond, g(tb)));
   return tb;
 }
-export async function mdPost(ent: DataSource, form?: FormBase) {
+export async function mdPost<T extends AnyDic>(ent: DataSource<T>, form?: FormBase) {
   // if (isS(ent)) ent = await entity(ent);
   if (ent.mdform) return ent.mdform();
   form ||= ent.form ? await ent.form(ent) : new Form(ent.fields.map(f => f.set && f.in()));
   return mdform([0, sentence(w.newItemTitle, { src: ent.s })], form, dt => ent.post([dt]));
 }
-export async function mdPut(src: DataSource, id: any, form?: FormBase) {
+export async function mdPut<T extends AnyDic>(src: DataSource<T>, id: any, form?: FormBase) {
   let dt = await src.get({ tp: "row", id, src: true });
   if (src.mdform) return src.mdform(dt);
 
@@ -980,7 +967,7 @@ function sentence(src: str, args: Dic) {
     return filter(r);
   }
 }
-export async function tryRemove(ent: DataSource, items: (AnyDic | Key)[]) {
+export async function tryRemove<T extends AnyDic>(ent: DataSource<T>, items: (T | Key)[]) {
   let count = l(items), main = items[0]?.[ent.main];
   if (await mdOkCancel(
     count == 1 && main ?
@@ -988,27 +975,27 @@ export async function tryRemove(ent: DataSource, items: (AnyDic | Key)[]) {
       sentence(w.confirmRemoveMany, { src: count == 1 ? ent.s : ent.p, count })
   )) await ent.del(items.map(i => isO(i) ? i[ent.id] : i));
 }
-export function mnRemove(ent: DataSource, items: AnyDic[]) {
+export function mnRemove<T extends AnyDic>(ent: DataSource<T>, items: T[]) {
   // let id: Key[] = items.map(i => i[ent.id]);
   return menuitem(icons.remove, w.remove, () => tryRemove(ent, items), $.sc?.remove, !l(items) || !ent.del)
 }
-function mnEdit(ent: DataSource, items: AnyDic[]) {
+export function mnEdit<T extends AnyDic>(ent: DataSource<T>, items: T[]) {
   return menuitem(icons.edit, w.edit, () => mdPut(ent, items[0][ent.id]), $.sc?.edit, l(items) != 1 || !ent.put)
 }
-export function menuCRUD(d: Dic[], { src: e }: Bond) {
+export function menuCRUD<T extends AnyDic>(d: T[], { src: e }: Bond<T>) {
   return [mnEdit(e, d), mnRemove(e, d)]
 }
-interface Crud {
-  options?: (wb: Bond, tb: Table) => Task<any>;
+interface Crud<T extends AnyDic> {
+  options?: (wb: Bond<T>, tb: Table<T>) => Task<any>;
   totals?: () => Task<any[]>
-  menu?: bool | ECrudMenu<Table>;
+  menu?: bool | ECrudMenu<T, Table<T>>;
   more?: MenuContent;
   single?: bool;
   add?: bool;
 }
-export async function crud(bond: Bond, i: Crud = {}) {
+export function crud<T extends AnyDic>(bond: Bond<T>, i: Crud<T> = {}) {
   let src = bond.src;
-  let tb = etable(bond, {
+  let tb = etable<T>(bond, {
     menu: isF(i.menu) ? i.menu : menuCRUD,
     single: i.single,
   });
@@ -1018,7 +1005,7 @@ export async function crud(bond: Bond, i: Crud = {}) {
       searchBy(bond),
       // selection(bond),
       right(),
-      await i.options?.(bond, tb),
+      i.options?.(bond, tb),
       t(i.add) && src.post && mbitem(icons.plus, `${w.add} ${src.s || ""}`, () => mdPost(src)).id("add"),
       i.more && idropdown(null, i.more, "vs"),
     ]),
@@ -1041,14 +1028,14 @@ export const cbFormats = {
   /**true | false */
   tf: (v: bool) => v == null ? "" : v ? w.true : w.false,
 };
-const
-  _fmtn = new Intl.NumberFormat(),
-  _fmtc = new Intl.NumberFormat(void 0, { style: "currency", currency: "AOA" }),
-  _fmtp = new Intl.NumberFormat(void 0, { style: "percent", maximumFractionDigits: 1 }),
-  _fmtd = new Intl.DateTimeFormat(void 0, { dateStyle: "short" }),
-  _fmtt = new Intl.DateTimeFormat(void 0, { timeStyle: "short" }),
-  _fmtm = new Intl.DateTimeFormat(void 0, { year: "numeric", month: "long" }),
-  _fmtDT = new Intl.DateTimeFormat(void 0, { dateStyle: "short", timeStyle: "short" });
+
+const { NumberFormat, DateTimeFormat } = Intl;
+const _fmtn = new NumberFormat();
+const _fmtp = new NumberFormat(void 0, { style: "percent", maximumFractionDigits: 1 });
+const _fmtd = new DateTimeFormat(void 0, { dateStyle: "short" });
+const _fmtt = new DateTimeFormat(void 0, { timeStyle: "short" });
+const _fmtm = new DateTimeFormat(void 0, { year: "numeric", month: "long" });
+const _fmtDT = new DateTimeFormat(void 0, { dateStyle: "short", timeStyle: "short" });
 export const
   /**format date*/
   fmtd = (v: Key | Date) => v == null ? "" : _fmtd.format(new Date(v)),
@@ -1061,21 +1048,19 @@ export const
   fmtdt = (v: Key | Date) => v == null ? "" : _fmtDT.format(new Date(v)),
   /**format number */
   fmtn = (v: str | number | bigint) => v == null ? "" : _fmtn.format(<number>v),
-  /**format currency */
-  fmtc = (v: str | number | bigint) => v == null ? "" : _fmtc.format(<number>v),
   /**format percent */
   fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
 
 type _<T> = { req?: bool; def?: T; text?: str; query?: bool, set?: bool };
-export const fText = (name: PropertyKey, { req, def, text, query, input, set }: _<str> & { input?: TextInputTp | "ta" } = {}): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text }), query: t(query), });
+export const fText = (name: PropertyKey, { req, def, text, query, input, set, max, min }: _<str> & { input?: TextInputTp | "ta" } & TextInValidation = {}): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text, max, min }), query: t(query), });
 export const fDate = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
 export const fTime = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
 export const fNumb = (name: PropertyKey, { req, def, text, set }: _<float> = {}): Field => ({ name, text, set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
-export const fCheck = (name: PropertyKey, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) } = {}): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.checkboxFmt](v), });
+export const fCheck = (name: PropertyKey, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) } = {}): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.cbfmt](v), });
 export const fSelect = <T extends Dic, K extends keyof T>(name: PropertyKey, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
 export const fRadio = (name: PropertyKey, options: RadioOption[], { req, def, text, set, query }: _<Key> = {}): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
-
-interface DataSourceOptions<T extends AnyDic> {
+export const fExp = (name: PropertyKey, out: Field["out"], { query, text }: _<str> = {}): Field => ({ name, query, text, out });
+interface ArrayDSOptions<T extends AnyDic> {
   /**
    * @default first field
    */
@@ -1083,12 +1068,16 @@ interface DataSourceOptions<T extends AnyDic> {
   /**@default "id" */
   id?: keyof T;
   autoIncrement?: bool;
-  s?: str; p?: str;
+  readOnly?: bool;
+  /**singular view name */
+  s?: str;
+  /**Plural view name */
+  p?: str;
 }
 export interface ArrayDataSource<T extends AnyDic> extends DataSource {
   src: T[];
 }
-export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opts: DataSourceOptions<T> = {}) {
+export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opts: ArrayDSOptions<T> = {}) {
   //id: keyof T = "id" as any, autoIncrement = id == "id"
   let id: keyof T = opts.id ||= <any>"id";
   let ai = def(opts.autoIncrement, id == "id");
@@ -1142,11 +1131,13 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
         // }
         if (bond.sort) {
           if (dt === src) dt = dt.slice();
-          let field = bond.sort, desc = bond.desc ? 1 : -1;
-          dt.sort((a, b) => {
-            let _a = a[field]; let _b = b[field];
-            return _a == _b ? 0 : (_b == null ? -1 : _a == null ? 1 : _b > _a ? 1 : -1) * desc;
-          });
+          for (let [field, _] of bond.sort) {
+            let desc = _ ? 1 : -1;
+            dt.sort((a, b) => {
+              let _a = a[field]; let _b = b[field];
+              return _a == _b ? 0 : (_b == null ? -1 : _a == null ? 1 : _b > _a ? 1 : -1) * desc;
+            });
+          }
         }
         let _ = l(dt);
         if (bond.limit) {
@@ -1173,39 +1164,42 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
             throw "not supported";
         }
       });
-    },
-    post(dt: T[]) {
-      let r = Array<AnyDic>(l(dt));
-      for (let item of dt) {
-        if (item[id] == null)
-          if (ai) item[id] = currentId++ as any;
-          else throw "invalid";
-        if (byKey(src, item[id], id))
-          throw "invalid";
-        r.push({ [id]: item[id] });
-        src.push(item);
-      }
-      reload(ds);
-      return r;
-    },
-    put(dt) {
-      for (let item of dt) {
-        let old = byKey(src, item.id as any, id);
-        if (old) for (let key in item)
-          (old as any)[key] = item[key];
-        else console.warn(`item of id '${item.id}' not found`)
-      }
-      reload(ds);
-    },
-    del(ids) {
-      for (let item of ids) {
-        let index = iByKey(src, item as any, id);
-        if (index != -1)
-          src.splice(index, 1);
-      }
-      reload(ds);
-    },
+    }
   };
+  if (!opts.readOnly)
+    assign(ds, {
+      post(dt: T[]) {
+        let r = Array<AnyDic>(l(dt));
+        for (let item of dt) {
+          if (item[id] == null)
+            if (ai) item[id] = currentId++ as any;
+            else throw "invalid";
+          if (byKey(src, item[id], id))
+            throw "invalid";
+          r.push({ [id]: item[id] });
+          src.push(item);
+        }
+        reload(ds);
+        return r;
+      },
+      put(dt) {
+        for (let item of dt) {
+          let old = byKey(src, item.id as any, id);
+          if (old) for (let key in item)
+            (old as any)[key] = item[key];
+          else console.warn(`item of id '${item.id}' not found`)
+        }
+        reload(ds);
+      },
+      del(ids) {
+        for (let item of ids) {
+          let index = iByKey(src, item as any, id);
+          if (index != -1)
+            src.splice(index, 1);
+        }
+        reload(ds);
+      }
+    });
   return ds;
 }
 
@@ -1231,7 +1225,7 @@ export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], {
   }
   let src: DataSource = {
     fields, id: id || <any>"id",
-    get: (bond, signal) => {
+    get(bond, signal) {
       return (url as Fetch)("GET", bond, signal);
     },
     async post(dt) {

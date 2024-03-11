@@ -4,8 +4,8 @@
   "description": "",
   "main": "cruded.js",
   "dependencies": {
-    "galho": "",
-    "galhui": ""
+    "galho": "file:../galho",
+    "galhui": "file:../galhui"
   },
   "type": "module",
   "sideEffects": false,
