@@ -1,4 +1,6 @@
 tsconfig.json
-cruded.ts
+*.ts
+!*.d.ts
+/create
 .vscode
 /sample

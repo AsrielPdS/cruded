@@ -1208,9 +1208,9 @@ type Fetch = (method: Method, body: any, signal?: AbortSignal) => any;
 interface FetchOpts<T extends AnyDic> {
   /**@default "id" */
   id?: keyof T;
-  headers: HeadersInit;
+  headers?: HeadersInit;
 }
-export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], { headers, id }: FetchOpts<T>) {
+export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], { headers, id }: FetchOpts<T>={}) {
   if (isS(url)) {
     let _ = url;
     url = async (method, body, signal) => {
