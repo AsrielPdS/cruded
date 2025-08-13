@@ -1,10 +1,9 @@
-import { Component, G, One, clearEvent, delay, div, g, m, wrap } from "galho";
+import { Component, G, HSElement, One, clearEvent, delay, div, g, m, wrap } from "galho";
+import { GOl, GUl } from "galho/elements.js";
 import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { AnyDic, Dic, Key, Pair, Task, assign, bool, byKey, def, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
+import { AnyDic, Dic, Key, Pair, Task, assign, bool, byKey, def, falsy, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
 import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
-import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TextInValidation, TimeIn, iFormBase, mdform } from "galhui/form.js";
-import { up } from "galhui/form.js";
-import { HTOl, HTUl } from "galho/elements.js"
+import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TextInValidation, TimeIn, iFormBase, mdform, up } from "galhui/form.js";
 
 declare global {
   interface Settings {
@@ -29,7 +28,7 @@ declare global {
     false: str;
   }
   module Cruded {
-    interface DataSource {
+    interface DataSource<T extends AnyDic> {
 
     }
     interface Field {
@@ -48,7 +47,7 @@ interface iPagging {
   min?: number;
   extreme?: boolean;
 }
-class Pagging extends Component<iPagging>{
+class Pagging extends Component<iPagging> {
   view() {
     let i = this.p, pags: number;
     let count = g('span');
@@ -82,8 +81,8 @@ class Pagging extends Component<iPagging>{
       ],
       g("hr"), total
     ]), (s) => {
-      total.set([Math.min(i.total - i.limit * i.pag, i.limit || i.total), ' / ', i.total])
-      pags = i.limit ? Math.ceil((i.total || 0) / i.limit) : 1;
+      total.set([Math.min(i.total - i.limit * i.pag, i.limit || i.total) || 0, ' / ', i.total || 0])
+      pags = i.limit && Math.ceil(i.total / i.limit) || 1;
       s.c("off", !!(pags < 2 && i.hideOnSingle));
 
       current.set(i.pag + 1);
@@ -193,7 +192,7 @@ export interface ICrud<T> {
   remove?(items: T[]): any | true;
   single?: boolean;
 }
-type RecordStyle = (row: G, value: Dic, index: int) => G | void;
+type RecordStyle = (row: G, value: Dic, index?: int) => G | void;
 
 export interface Column<T extends AnyDic = AnyDic> {
   key: PropertyKey;
@@ -208,6 +207,8 @@ export interface Column<T extends AnyDic = AnyDic> {
   fmt?(this: this, v: any, p: OutputOptions, src: T): any;
 }
 export type SortFn = (column: PropertyKey, desc: bool, active: bool) => any;
+const clearOnClick = <E extends HSElement, T>(g: G<E>, data: L<T>) =>
+  g.on("click", e => e.target == e.currentTarget && range.clear(data, "on"));
 interface iTable<T extends AnyDic> extends ICrud<T> {
   /**columns */
   cols?: L<Column<T>>;
@@ -229,7 +230,7 @@ interface iTable<T extends AnyDic> extends ICrud<T> {
   fill?: bool;
   foot?: ((tb: Table<T>) => One)[];
 }
-export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resizeCol: never }>{
+export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resizeCol: never }> {
   // get data() { return this.i.data as L<T>; }
   // get footData() { return this.i.foot as L<T>; }
   get cols() { return this.p.cols; }
@@ -346,8 +347,7 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
     });
     let foot = (v: (tb: Table<T>) => One) => g(v(this), "_ ft tr");
     let ft = p.foot && m(...p.foot.map(foot));
-    let d: G = div("_ tb", [hd, ft])
-      .on("click", e => e.target == e.currentTarget && range.clear(data as L, "on"))
+    let d: G = clearOnClick(div("_ tb", [hd, ft]), data as L)
       .p('tabIndex', 0)
       .on("keydown", e => {
         // switch (e.key) {
@@ -389,17 +389,39 @@ export class Table<T extends AnyDic = Dic> extends Component<iTable<T>, { resize
   }
   fillArea(sideSize = 2 * $.rem) {
     let c = this.p.cols, s = g(this), tr = s.childs();
-    console.log(sideSize, s.e.clientWidth);
     defineSize(c, s.e.clientWidth - 2 - sideSize);
     for (let i = 0; i < l(c); i++) {
       tr.child(i + 1).css({ width: c[i].size + "px" })
     }
   }
 }
-
+//TODO: remover | Fmts; ex: tcol('a',1,fmtn)
+export const tcol: {
+  <T extends AnyDic = Dic>(field: Field): Column<T>;
+  <T extends AnyDic = Dic>(key: str, size: float, fmt?: Column<T>["fmt"] | falsy, input?: falsy | Column<T>["input"], o?: Partial<Column<T>>): Column<T>;
+} = (key: str | Field, size?: float, fmt?: Column["fmt"], input?: falsy | Column["input"], o?: Partial<Column<any>>) => {
+  return isO(key) ? ({
+    dt: key.dt, key: key.name,
+    text: key.text, size: (key.size || 10) * $.rem,
+    align: key.align, fmt: key.out?.bind(key),
+  }) : ({ key, size, fmt, input: input as Column["input"], ...o });
+}
+const tag = <T>(p: ICrud<T>) => function (active: bool, i: int, container: G, tag: str, val: T) {
+  let s = container.child(i);//.emit(new CustomEvent("current", { detail: active }));
+  if (tag == "on") {
+    s.c(C.current, active);
+    if (active)
+      s.e.scrollIntoView({
+        block: "nearest", inline: "nearest"
+      });
+    p.focus?.(val, active);
+  }
+  container.child(i).c(tag, active);
+}
 export interface ilist<T> extends ICrud<T> {
   data?: L<T>;
   item(value: T): any;
+  empty?(this: L<T>, empty: bool, container?: G): any;
   single?: boolean;
 
   /**keydown 
@@ -407,39 +429,44 @@ export interface ilist<T> extends ICrud<T> {
   kd?: bool;
 }
 export function list<T, Tag extends keyof HTMLElementTagNameMap>(data: L<T> | T[], p: ilist<T> & { tag: Tag, enum?: bool; }): G<HTMLElementTagNameMap[Tag]>
-export function list<T>(data: L<T> | T[], p: ilist<T> & { enum?: true }): G<HTOl>
-export function list<T>(data: L<T> | T[], p: ilist<T> & { enum: false; }): G<HTUl>
+export function list<T>(data: L<T> | T[], p: ilist<T> & { enum?: true }): GOl
+export function list<T>(data: L<T> | T[], p: ilist<T> & { enum: false; }): GUl
 export function list<T>(data: L<T> | T[], p: ilist<T> & { tag?: any, enum?: bool }) {
   let dt = extend(data, {
     g: p.single ? null : ["on"],
     clear: true, key: p.key as any
   });
   let e = t(p.enum);
-  let r = dt.bind(g(p.tag || (e ? "ol" : "ul"), "_ list"), {
+  let r = clearOnClick(dt.bind(g(p.tag || (e ? "ol" : "ul"), "_ list"), {
     insert: v => crudHandler(wrap(p.item(v), "i").badd(e && div(C.side)), v, dt, p),
-    reload(v, j, container) {
-      container.child(j).set(Array.from(wrap(p.item(v), "i").badd(div(C.side)).e.childNodes))
-    },
-    tag(active, i, container, tag, val) {
-      let s = container.child(i
-      );//.emit(new CustomEvent("current", { detail: active }));
-      if (tag == "on") {
-        s.c(C.current, active);
-        if (active)
-          s.e.scrollIntoView({
-            block: "nearest", inline: "nearest"
-          });
-        p.focus?.(val, active);
-      }
-      container.child(i).c(tag, active);
-    },
+    // reload(v, j, container) {
+    //   container.child(j).set(Array.from(wrap(p.item(v), "i").badd(div(C.side)).e.childNodes))
+    // },
+    tag: tag(p), empty: p.empty,
     groups(active, i, container, g) {
       container.child(i).c(g, active);
     }
-  }).on("click", e => e.target == e.currentTarget && range.clear(data as L, "on"));
+  }), dt);
   return t(p.kd) ? r.p("tabIndex", 0).on("keydown", e => kbHandler(data as L<T>, e, p) && clearEvent(e)) : r;
 }
+export interface igrid<T> extends ICrud<T> {
+  data?: L<T>;
+  item(value: T): any;
+  empty?(this: L<T>, empty: bool, container?: G): any;
+  single?: boolean;
 
+  /**keydown 
+   * @default true */
+  kd?: bool;
+}
+export function grid<T>(data: L<T>, p: igrid<T>) {
+  return data.bind(clearOnClick(div("_ grid"), data), {
+    insert: v => crudHandler(wrap(p.item(v), "i"), v, data, p),
+    tag: tag(p), empty: p.empty,
+  }).css({
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+  });
+}
 function defineSize(items: { size?: int }[], max = 100) {
   let
     total = 0,
@@ -453,8 +480,8 @@ function defineSize(items: { size?: int }[], max = 100) {
   for (let i = 0; i < l; i++)
     items[i].size = (sizes[i] / total) * max;
 }
-function crudHandler<T>(e: G, v: T, dt: L<T>, i: ICrud<T>) {
-  let click = (ev: MouseEvent) => range.add(dt, "on", v, range.tp(ev.ctrlKey, ev.shiftKey))
+export function crudHandler<T>(e: G, v: T, dt: L<T>, i: ICrud<T>) {
+  let click = (ev: MouseEvent) => range.add(dt, "on", v, range.eTp(ev))
   return e.on({
     click,
     dblclick: i.open && (() => i.open(...range.list(dt, "on"))),
@@ -545,11 +572,23 @@ export interface Field extends Cruded.Field {
 
 }
 export type Put = (Dic & { id: Key });
-export interface DataSource<T extends AnyDic = AnyDic> extends Cruded.DataSource {
-  /**id field */
-  id?: PropertyKey;
+
+interface DataSourceInit<T extends AnyDic> {
+  /**id field @default "id" */
+  id?: keyof T;
+  /**single name */
+  s?: str;
+  /**plural name */
+  p?: str;
+  form?(e: DataSource<T>, edit?: bool): Task<FormBase>;
+  /**modal form */
+  mdform?(fill?: T): Task<T | void>;
+}
+export interface DataSource<T extends AnyDic = AnyDic> extends Cruded.DataSource<T>, DataSourceInit<T> {
+  // /** */
+  // id?: PropertyKey;
   /**main field */
-  main?: PropertyKey;
+  main?: keyof T;
   fields?: Field[];
   get?<K extends keyof SelectResult = "rows">(bond: ISelect<K>, cancel?: AbortSignal): Promise<SelectResult<T>[K]>;
   /**insert data to source
@@ -561,15 +600,8 @@ export interface DataSource<T extends AnyDic = AnyDic> extends Cruded.DataSource
   /**bonds listeners */
   bonds?: Array<WeakRef<Bond<T>>>;
   style?: RecordStyle;
-  form?(e: DataSource<T>, edit?: bool): Task<FormBase>;
-  /**modal form */
-  mdform?(fill?: T): Task<T | void>;
-  view?(bond: Bond): Task<(r: Dic) => G>;
+  // view?(bond: Bond): Task<(r: Dic) => G>;
   filter?(): any;
-  /**single name */
-  s?: str;
-  /**plural name */
-  p?: str;
 }
 
 export function reload<T extends AnyDic>(src: DataSource<T>) {
@@ -610,8 +642,8 @@ export interface SelectResult<T extends AnyDic = AnyDic> {
 export type GT = keyof SelectResult<any>;
 type SelectRowsResult<T extends AnyDic> = [total: number, data: T[]]
 
-export interface BondOptions {
-  fields?: PropertyKey[];
+export interface BondOptions<T> {
+  fields?: (keyof T)[];
   sort?: (Sort | PropertyKey)[] | str;
   pag?: int;
   limit?: int;
@@ -632,9 +664,9 @@ export class Bond<T extends AnyDic = AnyDic> {
   all: T[];
   readonly groupBy: L<str>;
   readonly queryBy: L<PropertyKey>;
-  readonly fields: L<PropertyKey>;
+  readonly fields: L<keyof T>;
   readonly sort: L<Sort, PropertyKey>;
-  constructor(src: DataSource<T>, opts: BondOptions | PropertyKey[] = {}) {
+  constructor(src: DataSource<T>, opts: BondOptions<T> | (keyof T)[] = {}) {
     isA(opts) && (opts = { fields: opts });
     this.src = src;
     this.#limit = def(opts.limit, $.defLimit);
@@ -889,15 +921,7 @@ export function all<T extends AnyDic>(bond: Bond<T>, container: G) {
 export function etable<T extends AnyDic>(bond: Bond<T>, i: itable<T> = {}) {
   let src = bond.src;
   let f = src.fields.filter(f => t(f.get));
-  let allCols = f.map((f: Field): Column<T> => ({
-    // opts: f,
-    dt: f.dt,
-    key: f.name,
-    text: f.text,
-    size: (f.size || 10) * $.rem,
-    align: f.align,
-    fmt: f.out?.bind(f),
-  }));
+  let allCols = f.map(tcol);
 
   l(bond.fields) || bond.fields.set(sub(f, "name"));
   let cols = orray<Column<T>>(bond.fields.map(f => byKey(allCols, f, "key")), { key: "key" });
@@ -941,9 +965,10 @@ export async function mdPut<T extends AnyDic>(src: DataSource<T>, id: any, form?
     (cl, md) => [
       bt(w.save, async e => {
         clearEvent(e);
-        if (form.valid())
+        if (form.valid()) {
           await busy(md, () => src.put([assign<Dic, Put>(form.data(true), { id })]));
-        cl();
+          cl();
+        }
       }, "submit").c("accept"),
       src.post && bt(w.duplicate, async e => {
         clearEvent(e);
@@ -956,7 +981,7 @@ export async function mdPut<T extends AnyDic>(src: DataSource<T>, id: any, form?
   );
   form.focus();
 }
-function sentence(src: str, args: Dic) {
+export function sentence(src: str, args: Dic) {
   if (src) {
     let r = [], rg = /{(\w+)}/g, t: RegExpExecArray, i = 0;
     while (t = rg.exec(src)) {
@@ -968,7 +993,7 @@ function sentence(src: str, args: Dic) {
   }
 }
 export async function tryRemove<T extends AnyDic>(ent: DataSource<T>, items: (T | Key)[]) {
-  let count = l(items), main = items[0]?.[ent.main];
+  let count = l(items), main = (items[0] as T)?.[ent.main];
   if (await mdOkCancel(
     count == 1 && main ?
       sentence(w.confirmRemove, { src: ent.s, item: g("strong", 0, main) }) :
@@ -986,18 +1011,20 @@ export function menuCRUD<T extends AnyDic>(d: T[], { src: e }: Bond<T>) {
   return [mnEdit(e, d), mnRemove(e, d)]
 }
 interface Crud<T extends AnyDic> {
-  options?: (wb: Bond<T>, tb: Table<T>) => Task<any>;
+  options?: (bond: Bond<T>, tb: Table<T>) => Task<any>;
   totals?: () => Task<any[]>
   menu?: bool | ECrudMenu<T, Table<T>>;
   more?: MenuContent;
   single?: bool;
   add?: bool;
+  p?: OutputOptions
 }
 export function crud<T extends AnyDic>(bond: Bond<T>, i: Crud<T> = {}) {
   let src = bond.src;
   let tb = etable<T>(bond, {
-    menu: isF(i.menu) ? i.menu : menuCRUD,
+    menu: i.menu !== false ? isF(i.menu) ? i.menu : menuCRUD : null,
     single: i.single,
+    p: i.p,
   });
   return [
     div("_ bar", [
@@ -1051,13 +1078,13 @@ export const
   /**format percent */
   fmtp = (v: str | number | bigint) => v == null ? "" : _fmtp.format(<number>v);
 
-type _<T> = { req?: bool; def?: T; text?: str; query?: bool, set?: bool };
-export const fText = (name: PropertyKey, { req, def, text, query, input, set, max, min }: _<str> & { input?: TextInputTp | "ta" } & TextInValidation = {}): Field => ({ name, set: t(set), text, in: () => new TextIn({ name, input, req, def, text, max, min }), query: t(query), });
+type _<T> = { req?: bool; def?: T; text?: str; query?: bool, set?: bool; size?: float };
+export const fText = (name: PropertyKey, { req, def, text, query, input, set, max, min, size }: _<str> & { input?: TextInputTp | "ta" } & TextInValidation = {}): Field => ({ name, size, set: t(set), text, in: () => new TextIn({ name, input, req, def, text, max, min }), query: t(query), });
 export const fDate = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new DateIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtd(v) });
 export const fTime = (name: PropertyKey, { req, def, text, set }: _<str> = {}): Field => ({ name, text, set: t(set), in: () => new TimeIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtt(v), });
-export const fNumb = (name: PropertyKey, { req, def, text, set }: _<float> = {}): Field => ({ name, text, set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
+export const fNumb = (name: PropertyKey, { req, def, text, set }: _<float> = {}): Field => ({ name, text, align: "end", set: t(set), in: () => new NumbIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : fmtn(v), });
 export const fCheck = (name: PropertyKey, { req, def, text, set, fmt }: _<bool> & { fmt?: keyof (typeof cbFormats) } = {}): Field => ({ set: t(set), name, text, in: () => new CheckIn({ name, req, def, text }), out: (v, p) => v == null ? p.null : cbFormats[fmt || p.cbfmt](v), });
-export const fSelect = <T extends Dic, K extends keyof T>(name: PropertyKey, options: T[], { req, def, text, set, key, view, query }: _<T[K]> & { key?: K, view(v: T): any }): Field => ({ name, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text }, options, key), query: t(query), out: (v, p) => v == null ? p.null : view(byKey(options, v, key)[1]) });
+export const fSelect = <T extends Dic, K extends keyof T>(name: PropertyKey, options: T[], { req, def, text, set, key, size, out, query }: _<T[K]> & { key?: K, out: (v: T) => any }): Field => ({ name, size, set: t(set), text, in: () => new SelectIn<T, K>({ name, req, def, text, item: out }, options, key), query: t(query), out: v => out(byKey(options, v, key)) });
 export const fRadio = (name: PropertyKey, options: RadioOption[], { req, def, text, set, query }: _<Key> = {}): Field => ({ name, set: t(set), text, in: () => new RadioIn({ name, req, def, text, options }), query: t(query), out: (v, p) => v == null ? p.null : byKey(options, v, 0)[1] });
 export const fExp = (name: PropertyKey, out: Field["out"], { query, text }: _<str> = {}): Field => ({ name, query, text, out });
 interface ArrayDSOptions<T extends AnyDic> {
@@ -1204,17 +1231,29 @@ export function fromArray<T extends AnyDic = Dic>(src: T[], fields: Field[], opt
 }
 
 type Method = "GET" | "POST" | "PUT" | "DELETE";
-type Fetch = (method: Method, body: any, signal?: AbortSignal) => any;
-interface FetchOpts<T extends AnyDic> {
-  /**@default "id" */
-  id?: keyof T;
+type Fetch = {
+  (method: Exclude<Method, "GET">, body: any): Task<any>;
+  (method: "GET", body: ISelect<any>, signal: AbortSignal): Task<any>;
+}
+interface FetchOpts<T extends AnyDic> extends DataSourceInit<T> {
   headers?: HeadersInit;
 }
-export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], { headers, id }: FetchOpts<T>={}) {
+export function urlParam(body: any) {
+  let p = new URLSearchParams();
+  for (let k in body) {
+    let v = body[k];
+    if (!isU(v))
+      p.append(k, isO(v) ? json(v) : v);//isA(v) ? `[${v.map(i => isO(i) ? json(i) : i)}]` : 
+  }
+  return p;
+}
+export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], opts: FetchOpts<T> = {}) {
   if (isS(url)) {
     let _ = url;
-    url = async (method, body, signal) => {
-      let r = await fetch(_, { method, body: json(body), signal, headers });
+    url = async (method: Method, body: any, signal?: AbortSignal) => {
+      let r = await (method == "GET" ?
+        fetch(_ + "?" + urlParam(body), { signal, headers: opts.headers }) :
+        fetch(_, { method, body: json(body), headers: { "Content-Type": "application/json", ...opts.headers } }));
       let dt = await r.json();
       if (r.ok)
         return dt;
@@ -1222,9 +1261,9 @@ export function fromFetch<T extends AnyDic>(url: str | Fetch, fields: Field[], {
       mdError(isS(dt) ? dt : json(dt));
       throw dt;
     }
-  }
-  let src: DataSource = {
-    fields, id: id || <any>"id",
+  } opts.id ||= "id" as any;
+  let src: DataSource<T> = {
+    ...opts, fields,
     get(bond, signal) {
       return (url as Fetch)("GET", bond, signal);
     },
