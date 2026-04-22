@@ -12,6 +12,7 @@
     "esModuleInterop": true,
 
     "noImplicitThis": true,
+    "verbatimModuleSyntax": true,
     "forceConsistentCasingInFileNames": true,
     "strictBindCallApply": true,
     "useUnknownInCatchVariables": true,

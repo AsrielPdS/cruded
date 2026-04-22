@@ -1,4 +1,4 @@
-import { assign } from "galho/util";
+import { assign } from "galho/util.js";
 import { icons, w } from "galhui";
 
 export function setEN() {

@@ -1,9 +1,12 @@
-import { Component, G, HSElement, One, clearEvent, delay, div, g, m, wrap } from "galho";
-import { GOl, GUl } from "galho/elements.js";
-import orray, { Alias, IList, L, copy, extend, range } from "galho/orray.js";
-import { AnyDic, Dic, Key, Pair, Task, assign, bool, byKey, def, falsy, filter, float, iByKey, int, isA, isF, isN, isO, isS, isU, json, l, notF, str, sub, t, unk } from "galho/util.js";
-import { $, C, Icon, MenuContent, MenuItems, TextInputTp, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
-import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, RadioOption, SelectIn, TextIn, TextInValidation, TimeIn, iFormBase, mdform, up } from "galhui/form.js";
+import { Component, G, type HSElement, type One, clearEvent, delay, div, g, m, wrap } from "galho";
+import type { GOl, GUl } from "galho/elements.js";
+import orray, { type Alias, type IList, L, copy, extend, range } from "galho/orray.js";
+import type { AnyDic, Dic, Key, Pair, Task, bool, falsy, float, int, str, unk } from "galho/util.js";
+import { assign, byKey, def, filter, iByKey, isA, isF, isN, isO, isS, isU, json, l, notF, sub, t } from "galho/util.js";
+import type { Icon, MenuContent, MenuItems, TextInputTp } from "galhui";
+import { $, C, body, bt, busy, cancel, ctxmenu, doc, focusable, ibt, icon, icons, idropdown, mbitem, mdError, mdOkCancel, menu, menucb, menuitem, menusep, modal, right, w } from "galhui";
+import type { RadioOption, TextInValidation, iFormBase } from "galhui/form.js";
+import { CheckIn, DateIn, Form, FormBase, Input, NumbIn, RadioIn, SelectIn, TextIn, TimeIn, mdform, up } from "galhui/form.js";
 
 declare global {
   interface Settings {
@@ -27,7 +30,7 @@ declare global {
     true: str;
     false: str;
   }
-  module Cruded {
+  namespace Cruded {
     interface DataSource<T extends AnyDic> {
 
     }
@@ -687,6 +690,7 @@ export class Bond<T extends AnyDic = AnyDic> {
       return f;
     }).on(() => this.update(true));
     this.queryBy = orray(opts.queryBy || src.fields.filter(f => f.query).map(f => f.name)).on(onupd);
+    this.groupBy = orray().on(onupd);
   }
   sortBy(field: PropertyKey, desc?: bool) {
     this.sort.set(field && [[field, desc]]);
@@ -822,7 +826,7 @@ export class Bond<T extends AnyDic = AnyDic> {
     return this;
   }
   toJSON<T extends ISelect<any>>(extra?: Partial<T>): ISelect<"full"> & Partial<T> {
-    let { queryBy: qb, fields: f, src, sort: s, limit, pag: p } = this;
+    let { queryBy: qb, groupBy: gb, fields: f, src, sort: s, limit, pag: p } = this;
     return {
       tp: "full" as any,
       fields: !l(f) || l(src.fields) == l(f) ? void 0 : f.map(f => {
@@ -832,6 +836,7 @@ export class Bond<T extends AnyDic = AnyDic> {
       limit, pag: p || void 0,
       query: this.#q || undefined,
       queryBy: this.#q && l(qb) ? qb : undefined,
+      groupBy: l(gb) ? gb : void 0,
       sort: l(s) ? s : void 0,
       ...extra
       // total: true
